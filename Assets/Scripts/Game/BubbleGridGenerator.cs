@@ -13,6 +13,11 @@ public class BubbleGridGenerator : MonoBehaviour
 
     void Start()
     {
+        if (bubblePrefab == null)
+        {
+            Debug.LogError("BubbleGridGenerator: bubblePrefab이 할당되지 않았습니다.");
+            return;
+        }
         grid = new GameObject[rows, columns];
         GenerateGrid();
     }
