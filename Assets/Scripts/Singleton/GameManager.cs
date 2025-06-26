@@ -1,7 +1,9 @@
 using UnityEngine;
 
-public class GameManager : MonoBehaviour
+public class GameManager : Singleton<GameManager>
 {
+    [SerializeField] private BubbleGridGenerator bubbleGridGenerator;
 
+    public BubbleGridGenerator BubbleGridGenerator() => bubbleGridGenerator;
 
 }

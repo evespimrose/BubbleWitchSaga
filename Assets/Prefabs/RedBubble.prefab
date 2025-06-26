@@ -10,7 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 8520369072851075060}
   - component: {fileID: 6205644574281972235}
-  m_Layer: 0
+  - component: {fileID: 1199591214669878165}
+  m_Layer: 6
   m_Name: RedBubble
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -87,3 +88,18 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!114 &1199591214669878165
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8852192883915584608}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33d45e42f6c39734f8024f0f94a88bd3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gridX: 0
+  gridY: 0
+  bubbleColor: 0

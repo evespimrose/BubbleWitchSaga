@@ -25,3 +25,10 @@ public static class BubbleColorUtil
         };
     }
 }
+
+[System.Serializable]
+public class BubbleCell
+{
+    public bool hasBubble;
+    public BubbleColor bubbleColor;
+}

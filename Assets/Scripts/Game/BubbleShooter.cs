@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(LineRenderer))]
@@ -7,28 +7,33 @@ public class BubbleShooter : MonoBehaviour
 {
     [Header("Bubble Settings")]
     public GameObject bubblePrefab;
-    public float shootForce = 2f;
+    public GameObject ghostBubblePrefab;
+    public float shootForce = 10f;
     public Transform firePoint;
+    public LayerMask wallMask;
+    public LayerMask bubbleMask;
+    public float maxPredictionDistance = 30f;
+    public int maxBounces = 3;
 
-    [Header("Trajectory Settings")]
-    public int trajectoryPointCount = 30;
-    public float trajectoryPointSpacing = 0.1f;
+    [Header("Line Settings")]
+    public LineRenderer lineRenderer;
 
-    private LineRenderer lineRenderer;
-    private Vector2 shootDirection;
+    private Camera cam;
     private bool isAiming;
-
+    private Vector2 shootDirection;
+    private GameObject ghostBubbleInstance;
+    private BubbleGridGenerator gridGenerator;
     private @InputSystem_Actions inputActions;
 
     void Awake()
     {
-        lineRenderer = GetComponent<LineRenderer>();
+        cam = Camera.main;
+        gridGenerator = GameManager.Instance.BubbleGridGenerator();
         lineRenderer.positionCount = 0;
         lineRenderer.enabled = false;
 
         inputActions = new @InputSystem_Actions();
         inputActions.Gameplay.Enable();
-
         inputActions.Gameplay.Fire.started += _ => StartAiming();
         inputActions.Gameplay.Fire.canceled += _ => ReleaseShot();
     }
@@ -37,6 +42,19 @@ public class BubbleShooter : MonoBehaviour
     {
         inputActions.Gameplay.Fire.started -= _ => StartAiming();
         inputActions.Gameplay.Fire.canceled -= _ => ReleaseShot();
+    }
+
+    void Update()
+    {
+        if (isAiming)
+        {
+            Vector2 mouseWorldPos = cam.ScreenToWorldPoint(inputActions.Gameplay.PointerPosition.ReadValue<Vector2>());
+            shootDirection = (mouseWorldPos - (Vector2)firePoint.position).normalized;
+            List<Vector2> points = CalculateTrajectory(firePoint.position, shootDirection);
+            lineRenderer.positionCount = points.Count;
+            for (int i = 0; i < points.Count; i++)
+                lineRenderer.SetPosition(i, points[i]);
+        }
     }
 
     private void StartAiming()
@@ -52,62 +70,61 @@ public class BubbleShooter : MonoBehaviour
         FireBubble();
         isAiming = false;
         lineRenderer.enabled = false;
+
+        if (ghostBubbleInstance != null)
+            Destroy(ghostBubbleInstance);
     }
 
-    void Update()
+    List<Vector2> CalculateTrajectory(Vector2 start, Vector2 dir)
     {
-        if (isAiming) UpdateTrajectory();
-    }
+        List<Vector2> points = new List<Vector2>();
+        points.Add(start);
 
-    private void UpdateTrajectory()
-    {
-        Vector2 startPoint = firePoint.position;
-        Vector2 direction = (Camera.main.ScreenToWorldPoint(inputActions.Gameplay.PointerPosition.ReadValue<Vector2>()) - (Vector3)startPoint).normalized;
+        Vector2 currentPos = start;
+        Vector2 currentDir = dir;
+        float remainingDist = maxPredictionDistance;
 
-        List<Vector3> points = new List<Vector3>();
-        points.Add(startPoint);
-
-        int maxReflections = 3;      // 반사 최대 횟수
-        float maxDistance = 20f;     // 레이 최대 길이
-        Vector2 currentPos = startPoint;
-        Vector2 currentDir = direction;
-
-        for (int i = 0; i < maxReflections; i++)
+        for (int i = 0; i < maxBounces; i++)
         {
-            RaycastHit2D hit = Physics2D.Raycast(currentPos, currentDir, maxDistance);
-            if (hit.collider != null && hit.collider.gameObject.CompareTag("Wall"))  // 벽 태그 확인 필수
+            RaycastHit2D hit = Physics2D.Raycast(currentPos, currentDir, remainingDist, wallMask | bubbleMask);
+            if (hit.collider != null)
             {
-                Vector2 hitPoint = hit.point;
-                points.Add(hitPoint);
+                points.Add(hit.point);
 
-                // 반사 벡터 계산
-                Vector2 inDirection = currentDir;
-                Vector2 normal = hit.normal;
-                Vector2 reflectDir = Vector2.Reflect(inDirection, normal).normalized;
-
-                currentPos = hitPoint;
-                currentDir = reflectDir;
+                if (hit.collider.CompareTag("Wall"))
+                {
+                    remainingDist -= Vector2.Distance(currentPos, hit.point);
+                    currentDir = Vector2.Reflect(currentDir, hit.normal);
+                    currentPos = hit.point;
+                    continue;
+                }
+                else if (hit.collider.CompareTag("Bubble"))
+                {
+                    PredictSnapToGrid(hit.point);
+                    break;
+                }
             }
             else
             {
-                // 벽 충돌 없으면 직선으로 끝까지 그리기
-                points.Add(currentPos + currentDir * maxDistance);
+                points.Add(currentPos + currentDir * remainingDist);
                 break;
             }
         }
 
-        // LineRenderer 점 설정
-        lineRenderer.positionCount = points.Count;
-        for (int i = 0; i < points.Count; i++)
-        {
-            lineRenderer.SetPosition(i, points[i]);
-        }
-
-        shootDirection = direction;  // 실제 발사 방향은 최초 방향 그대로 유지
+        return points;
     }
 
+    void PredictSnapToGrid(Vector2 contactPoint)
+    {
+        Vector2 gridPos = gridGenerator.FindNearestGridPosition(contactPoint);
+        if (ghostBubbleInstance == null)
+        {
+            ghostBubbleInstance = Instantiate(ghostBubblePrefab);
+        }
+        ghostBubbleInstance.transform.position = gridPos;
+    }
 
-    private void FireBubble()
+    void FireBubble()
     {
         GameObject bubble = Instantiate(bubblePrefab, firePoint.position, Quaternion.identity);
         Rigidbody2D rb = bubble.GetComponent<Rigidbody2D>();
@@ -115,5 +132,15 @@ public class BubbleShooter : MonoBehaviour
         {
             rb.linearVelocity = shootDirection * shootForce;
         }
+
+        float angle = Vector2.SignedAngle(Vector2.right, shootDirection);
+        angle = Mathf.Abs(angle);
+
+        Vector2 gridPos = gridGenerator.FindNearestGridPosition(bubble.transform.position);
+
+        (int gridX, int gridY) = gridGenerator.FindNearestGridIndex(gridPos);
+
+        Debug.Log($"🟢 Bubble 발사! 방향 각도: {angle:F1}°, 그리드 좌표: ({gridX}, {gridY})");
     }
+
 }
