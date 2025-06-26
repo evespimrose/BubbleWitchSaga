@@ -43,7 +43,7 @@ public class BubbleGridGenerator : MonoBehaviour
     {
         float xOffset = bubbleRadius * 2f;
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
-        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 0.95f);
+        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
 
         for (int y = 0; y < rows; y++)
         {
@@ -103,7 +103,7 @@ public class BubbleGridGenerator : MonoBehaviour
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
 
         // 오리진 기준 설정 (기즈모와 동일)
-        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 0.95f);
+        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
 
         float minDist = float.MaxValue;
         Vector2 nearestPos = Vector2.zero;
@@ -128,37 +128,101 @@ public class BubbleGridGenerator : MonoBehaviour
         return nearestPos;
     }
 
-    public (int, int) FindNearestGridIndex(Vector2 contact)
+    public (int, int) FindNearestGridIndex(Vector2 worldPos)
     {
         float xOffset = bubbleRadius * 2f;
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
-        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 0.95f);
+        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
 
-        float minDist = float.MaxValue;
-        int nearestX = -1, nearestY = -1;
+        Vector2 localPos = worldPos - origin;
 
-        for (int y = 0; y < rows; y++)
-        {
-            for (int x = 0; x < columns; x++)
-            {
-                float xPos = x * xOffset + (y % 2 == 1 ? bubbleRadius : 0);
-                float yPos = -y * yOffset;
-                Vector2 gridPos = origin + new Vector2(xPos, yPos);
+        // 대략적인 행 계산
+        int y = Mathf.RoundToInt(-localPos.y / yOffset);
 
-                float dist = Vector2.Distance(contact, gridPos);
-                if (dist < minDist)
-                {
-                    minDist = dist;
-                    nearestX = x;
-                    nearestY = y;
-                }
-            }
-        }
+        // 짝수/홀수 줄 구분해 x 계산
+        float xPosOffset = (y % 2 == 1) ? bubbleRadius : 0f;
+        int x = Mathf.RoundToInt((localPos.x - xPosOffset) / xOffset);
 
-        return (nearestX, nearestY);
+        x = Mathf.Clamp(x, 0, columns - 1);
+        y = Mathf.Clamp(y, 0, rows - 1);
+
+        return (x, y);
+    }
+
+    public bool IsCellOccupied(int x, int y)
+    {
+        if (x < 0 || x >= columns || y < 0 || y >= rows) return true;
+        return grid[y, x] != null;
+    }
+
+    public void SetCellOccupied(int x, int y, GameObject bubble)
+    {
+        if (x < 0 || x >= columns || y < 0 || y >= rows) return;
+        grid[y, x] = bubble;
     }
 
 
+
+    public List<(int, int)> GetNeighbors(int x, int y)
+    {
+        List<(int, int)> neighbors = new List<(int, int)>();
+
+        int[][] evenRowOffsets = new int[][]
+        {
+            new int[]{-1, 0}, new int[]{0, -1}, new int[]{1, -1},
+            new int[]{1, 0}, new int[]{1, 1}, new int[]{0, 1}
+        };
+        int[][] oddRowOffsets = new int[][]
+        {
+            new int[]{-1, 0}, new int[]{-1, -1}, new int[]{0, -1},
+            new int[]{1, 0}, new int[]{0, 1}, new int[]{-1, 1}
+        };
+
+        int[][] offsets = (y % 2 == 0) ? evenRowOffsets : oddRowOffsets;
+
+        foreach (var offset in offsets)
+        {
+            int nx = x + offset[0];
+            int ny = y + offset[1];
+            if (nx >= 0 && nx < columns && ny >= 0 && ny < rows)
+            {
+                neighbors.Add((nx, ny));
+            }
+        }
+
+        return neighbors;
+    }
+
+    public (int, int) FindClosestFreeNeighborGrid(int bx, int by, Vector2 shootDir)
+    {
+        var neighbors = GetNeighbors(bx, by);
+
+        float maxDot = -1f;
+        (int, int) bestCell = (bx, by);
+
+        Vector2 baseWorldPos = GridToWorld(bx, by);
+        Vector2 dirNorm = shootDir.normalized;
+
+        foreach (var cell in neighbors)
+        {
+            int nx = cell.Item1;
+            int ny = cell.Item2;
+
+            if (IsCellOccupied(nx, ny)) continue;
+
+            Vector2 neighborWorldPos = GridToWorld(nx, ny);
+            Vector2 toNeighbor = (neighborWorldPos - baseWorldPos).normalized;
+
+            float dot = Vector2.Dot(dirNorm, toNeighbor);
+            if (dot > maxDot)
+            {
+                maxDot = dot;
+                bestCell = (nx, ny);
+            }
+        }
+
+        return bestCell;
+    }
 
     public Vector2 GridToWorld(int x, int y)
     {
@@ -168,7 +232,7 @@ public class BubbleGridGenerator : MonoBehaviour
         float xPos = x * xOffset + (y % 2 == 1 ? bubbleRadius : 0);
         float yPos = -y * yOffset;
 
-        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f);
+        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
         return origin + new Vector2(xPos, yPos);
     }
 
@@ -179,7 +243,7 @@ public class BubbleGridGenerator : MonoBehaviour
 
         float xOffset = bubbleRadius * 2f;
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
-        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 0.95f);
+        Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
 
         for (int y = 0; y < rows; y++)
         {

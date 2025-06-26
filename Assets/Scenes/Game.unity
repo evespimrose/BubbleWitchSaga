@@ -200,7 +200,7 @@ Transform:
   m_GameObject: {fileID: 53220579}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -3.46, z: 0}
+  m_LocalPosition: {x: 0, y: 1.54, z: 0}
   m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -439,7 +439,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: 0, y: 5, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -523,7 +523,7 @@ Transform:
   m_GameObject: {fileID: 619394800}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -694,7 +694,7 @@ Transform:
   m_GameObject: {fileID: 910859595}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 5, z: 0}
   m_LocalScale: {x: 1, y: 6.9759116, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -829,7 +829,7 @@ Transform:
   m_GameObject: {fileID: 972312014}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -4, z: 0}
+  m_LocalPosition: {x: 0, y: 1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -857,9 +857,11 @@ MonoBehaviour:
   bubbleMask:
     serializedVersion: 2
     m_Bits: 64
-  maxPredictionDistance: 30
-  maxBounces: 3
-  lineRenderer: {fileID: 972312018}
+  maxPredictionDistance: 100
+  maxBounces: 100
+  trajectoryDotPrefab: {fileID: 882475887427548426, guid: e901720aaa5d1874ab47802942bedcbd, type: 3}
+  dotSpacing: 0.3
+  trajectoryDots: []
 --- !u!120 &972312018
 LineRenderer:
   serializedVersion: 2
@@ -1048,7 +1050,7 @@ Transform:
   m_GameObject: {fileID: 1029203613}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.1, y: 0, z: 0}
+  m_LocalPosition: {x: 0.1, y: 5, z: 0}
   m_LocalScale: {x: 0.85, y: 0.85, z: 0.85}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -1166,7 +1168,77 @@ MonoBehaviour:
   columns: 11
   bubbleRadius: 0.175
   gridData:
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
   - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 0
     bubbleColor: 0
@@ -1186,77 +1258,7 @@ MonoBehaviour:
     bubbleColor: 0
   - hasBubble: 0
     bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 0
     bubbleColor: 0
@@ -1439,7 +1441,7 @@ Transform:
   m_GameObject: {fileID: 1188057277}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1472,7 +1474,7 @@ Transform:
   m_GameObject: {fileID: 1198641704}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 5, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1652,7 +1654,7 @@ Transform:
   m_GameObject: {fileID: 1479388917}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5, y: 0, z: 0}
+  m_LocalPosition: {x: 5, y: 5, z: 0}
   m_LocalScale: {x: 1, y: 6.9759116, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1830,6 +1832,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: BlueBubble
       objectReference: {fileID: 0}
+    - target: {fileID: 6889876312800891802, guid: 9adc80d7d8bf9ed4585688e6fcf27490, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1846,6 +1852,10 @@ PrefabInstance:
     - target: {fileID: 5221917896833068936, guid: dbcee36a774669649b317a97f85d2299, type: 3}
       propertyPath: m_Name
       value: GreenBubble
+      objectReference: {fileID: 0}
+    - target: {fileID: 5221917896833068936, guid: dbcee36a774669649b317a97f85d2299, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9077874148468459592, guid: dbcee36a774669649b317a97f85d2299, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1943,6 +1953,10 @@ PrefabInstance:
     - target: {fileID: 8852192883915584608, guid: b18329ac75a2bc74d8b7f07edb247bcb, type: 3}
       propertyPath: m_Name
       value: RedBubble
+      objectReference: {fileID: 0}
+    - target: {fileID: 8852192883915584608, guid: b18329ac75a2bc74d8b7f07edb247bcb, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
