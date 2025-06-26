@@ -49,72 +49,76 @@ public class BubbleShooter : MonoBehaviour
     {
         if (!isAiming) return;
 
+        UpdateShootDirection();
+        List<Vector2> trajectoryPoints = CalculateTrajectory(firePoint.position, shootDirection);
+        UpdateTrajectoryDots(trajectoryPoints);
+        UpdateGhostBubble(trajectoryPoints);
+    }
+    void UpdateShootDirection()
+    {
         Vector2 mouseWorldPos = cam.ScreenToWorldPoint(inputActions.Gameplay.PointerPosition.ReadValue<Vector2>());
         shootDirection = (mouseWorldPos - (Vector2)firePoint.position).normalized;
+    }
 
-        List<Vector2> points = CalculateTrajectory(firePoint.position, shootDirection);
-        UpdateTrajectoryDots(points);
-
-        if (points.Count >= 2)
+    void UpdateGhostBubble(List<Vector2> points)
+    {
+        if (points.Count < 2)
         {
-            Vector2 lastPoint = points[points.Count - 1];
-            Vector2 secondLastPoint = points[points.Count - 2];
+            SetGhostBubbleActive(false);
+            return;
+        }
 
-            // 마지막 구간에 대해 충돌한 Bubble 체크
-            RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized,
-                                                 Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
+        Vector2 lastPoint = points[^1];
+        Vector2 secondLastPoint = points[^2];
 
-            if (hit.collider != null && hit.collider.CompareTag("Bubble"))
-            {
-                Vector2 collidedBubblePos = hit.collider.transform.position;
-                (int bx, int by) = gridGenerator.FindNearestGridIndex(collidedBubblePos);
+        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized,
+                                             Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
 
-                Vector2 shootDir = (lastPoint - secondLastPoint).normalized;
-
-                // 경로 끝점 기준 그리드 좌표
-                (int gx, int gy) = gridGenerator.FindNearestGridIndex(lastPoint);
-
-                bool isAdjacentAndFree = false;
-
-                // 만약 predictedGrid가 만난 Bubble 주변이고 비었으면 바로 사용
-                var neighbors = gridGenerator.GetNeighbors(bx, by);
-                foreach (var n in neighbors)
-                {
-                    if (n.Item1 == gx && n.Item2 == gy && !gridGenerator.IsCellOccupied(gx, gy))
-                    {
-                        isAdjacentAndFree = true;
-                        break;
-                    }
-                }
-
-                if (!isAdjacentAndFree)
-                {
-                    // 빈 칸이 아니거나 인접하지 않으면 방향 기반 가장 적합 빈 칸 찾기
-                    (gx, gy) = gridGenerator.FindClosestFreeNeighborGrid(bx, by, shootDir);
-                }
-
-                Vector2 ghostPos = gridGenerator.GridToWorld(gx, gy);
-
-                CreateGhostBubbleIfNeeded();
-                ghostBubbleInstance.SetActive(true);
-                ghostBubbleInstance.transform.position = ghostPos;
-
-                Debug.Log($"👻 GhostBubble 위치 변경: Grid=({gx}, {gy}), WorldPos={ghostPos}");
-            }
-            else
-            {
-                if (ghostBubbleInstance != null)
-                    ghostBubbleInstance.SetActive(false);
-            }
+        if (hit.collider != null && hit.collider.CompareTag("Bubble"))
+        {
+            HandleGhostBubblePlacement(hit.collider.transform.position, lastPoint, secondLastPoint);
         }
         else
         {
-            if (ghostBubbleInstance != null)
-                ghostBubbleInstance.SetActive(false);
+            SetGhostBubbleActive(false);
         }
     }
 
+    void HandleGhostBubblePlacement(Vector2 collidedBubblePos, Vector2 lastPoint, Vector2 secondLastPoint)
+    {
+        (int bx, int by) = gridGenerator.FindNearestGridIndex(collidedBubblePos);
+        Vector2 shootDir = (lastPoint - secondLastPoint).normalized;
+        (int gx, int gy) = gridGenerator.FindNearestGridIndex(lastPoint);
 
+        if (!IsAdjacentFreeCell(bx, by, gx, gy))
+        {
+            (gx, gy) = gridGenerator.FindClosestFreeNeighborGrid(bx, by, shootDir);
+        }
+
+        Vector2 ghostPos = gridGenerator.GridToWorld(gx, gy);
+        CreateGhostBubbleIfNeeded();
+        ghostBubbleInstance.SetActive(true);
+        ghostBubbleInstance.transform.position = ghostPos;
+
+        Debug.Log($"👻 GhostBubble 위치 변경: Grid=({gx}, {gy}), WorldPos={ghostPos}");
+    }
+
+    bool IsAdjacentFreeCell(int baseX, int baseY, int checkX, int checkY)
+    {
+        var neighbors = gridGenerator.GetNeighbors(baseX, baseY);
+        foreach (var n in neighbors)
+        {
+            if (n.Item1 == checkX && n.Item2 == checkY && !gridGenerator.IsCellOccupied(checkX, checkY))
+                return true;
+        }
+        return false;
+    }
+
+    void SetGhostBubbleActive(bool active)
+    {
+        if (ghostBubbleInstance != null)
+            ghostBubbleInstance.SetActive(active);
+    }
 
     private void StartAiming()
     {
