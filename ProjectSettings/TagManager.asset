@@ -4,8 +4,9 @@
 TagManager:
   serializedVersion: 3
   tags:
-  - Wall
   - Bubble
+  - LeftWall
+  - RightWall
   layers:
   - Default
   - TransparentFX

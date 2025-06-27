@@ -82,7 +82,7 @@ public class BubbleGridGenerator : MonoBehaviour
         }
     }
 
-    GameObject GetPrefabByColor(BubbleColor color)
+    public GameObject GetPrefabByColor(BubbleColor color)
     {
         switch (color)
         {
@@ -161,6 +161,37 @@ public class BubbleGridGenerator : MonoBehaviour
         grid[y, x] = bubble;
     }
 
+    public List<(int, int)> GetConnectedSameColorBubbles(int startX, int startY, BubbleColor color)
+    {
+        List<(int, int)> connected = new List<(int, int)>();
+        bool[,] visited = new bool[rows, columns];
+
+        Queue<(int, int)> queue = new Queue<(int, int)>();
+        queue.Enqueue((startX, startY));
+        visited[startY, startX] = true;
+
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+            connected.Add((x, y));
+
+            foreach (var (nx, ny) in GetNeighbors(x, y))
+            {
+                if (visited[ny, nx]) continue;
+                GameObject neighbor = grid[ny, nx];
+                if (neighbor == null) continue;
+
+                Bubble neighborBubble = neighbor.GetComponent<Bubble>();
+                if (neighborBubble != null && neighborBubble.bubbleColor == color)
+                {
+                    visited[ny, nx] = true;
+                    queue.Enqueue((nx, ny));
+                }
+            }
+        }
+
+        return connected;
+    }
 
 
     public List<(int, int)> GetNeighbors(int x, int y)
@@ -193,6 +224,14 @@ public class BubbleGridGenerator : MonoBehaviour
         return neighbors;
     }
 
+    public GameObject GetBubbleAt(int x, int y)
+    {
+        if (x < 0 || x >= columns || y < 0 || y >= rows)
+            return null;
+        return grid[y, x];
+    }
+
+
     public (int, int) FindClosestFreeNeighborGrid(int bx, int by, Vector2 shootDir)
     {
         var neighbors = GetNeighbors(bx, by);
@@ -223,6 +262,52 @@ public class BubbleGridGenerator : MonoBehaviour
 
         return bestCell;
     }
+
+    public (int, int) SnapBubbleToGrid(GameObject bubble, Vector2 contactPoint)
+    {
+        // 가장 가까운 그리드 인덱스 계산
+        (int x, int y) = FindNearestGridIndex(contactPoint);
+
+        // 그리드 범위 초과 방지
+        if (x < 0 || x >= columns || y < 0 || y >= rows)
+        {
+            Debug.LogWarning($"❌ SnapBubbleToGrid 실패: 범위 밖 인덱스 ({x},{y})");
+            return (-1, -1);
+        }
+
+        // 이미 점유된 셀이면 방향 기반 인접한 빈 셀 찾기
+        if (IsCellOccupied(x, y))
+        {
+            Rigidbody2D rb = bubble.GetComponent<Rigidbody2D>();
+            Vector2 shootDir = rb != null ? rb.linearVelocity.normalized : Vector2.down;
+
+            (x, y) = FindClosestFreeNeighborGrid(x, y, shootDir);
+
+            if (IsCellOccupied(x, y))
+            {
+                Debug.LogWarning($"⚠️ SnapBubbleToGrid 실패: 대체 가능한 인접 셀도 없음 ({x},{y})");
+                return (-1, -1);
+            }
+        }
+
+        // 실제 위치 이동 및 그리드 등록
+        Vector2 snappedWorldPos = GridToWorld(x, y);
+        bubble.transform.position = snappedWorldPos;
+        SetCellOccupied(x, y, bubble);
+
+        // Bubble 컴포넌트가 있다면 gridX, gridY 설정
+        Bubble bubbleComp = bubble.GetComponent<Bubble>();
+        if (bubbleComp != null)
+        {
+            bubbleComp.gridX = x;
+            bubbleComp.gridY = y;
+            //bubbleComp.isAttached = true; // 이 프로퍼티는 선택 사항
+        }
+
+        Debug.Log($"📌 SnapBubbleToGrid 완료: Grid=({x},{y}), WorldPos={snappedWorldPos}");
+        return (x, y);
+    }
+
 
     public Vector2 GridToWorld(int x, int y)
     {

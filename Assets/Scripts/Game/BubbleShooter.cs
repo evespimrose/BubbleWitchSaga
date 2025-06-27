@@ -1,11 +1,12 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+using System.Linq;
 
 public class BubbleShooter : MonoBehaviour
 {
     [Header("Bubble Settings")]
-    public GameObject bubblePrefab;
+    public GameObject bubbleProjectilePrefab;
     public GameObject ghostBubblePrefab;
     public float shootForce = 10f;
     public Transform firePoint;
@@ -16,7 +17,7 @@ public class BubbleShooter : MonoBehaviour
 
     [Header("Trajectory Dot Settings")]
     public GameObject trajectoryDotPrefab; // 작고 투명한 원형 스프라이트 프리팹
-    public float dotSpacing = 0.3f;         // 점 간격(유니티 월드 단위)
+    public float dotSpacing = 0.3f;        // 점 간격(유니티 월드 단위)
 
     private Camera cam;
     private bool isAiming;
@@ -25,7 +26,6 @@ public class BubbleShooter : MonoBehaviour
     private BubbleGridGenerator gridGenerator;
     private @InputSystem_Actions inputActions;
 
-    // 궤적 점 오브젝트 리스트 (재활용)
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
 
     void Awake()
@@ -57,8 +57,38 @@ public class BubbleShooter : MonoBehaviour
     void UpdateShootDirection()
     {
         Vector2 mouseWorldPos = cam.ScreenToWorldPoint(inputActions.Gameplay.PointerPosition.ReadValue<Vector2>());
-        shootDirection = (mouseWorldPos - (Vector2)firePoint.position).normalized;
+        Vector2 rawDirection = mouseWorldPos - (Vector2)firePoint.position;
+
+        float angle = Vector2.SignedAngle(Vector2.right, rawDirection);
+
+        // 🎯 아래 방향으로 향할 경우, 좌/우 구분해서 강제 고정 (보정 처리 X)
+        if (rawDirection.y <= 0f)
+        {
+            if (rawDirection.x < 0f)
+            {
+                angle = 160f; // 왼쪽 아래 → 좌측 상단 방향
+            }
+            else
+            {
+                angle = 20f;  // 오른쪽 아래 → 우측 상단 방향
+            }
+        }
+        else
+        {
+            // 🔒 위쪽을 향하지만 너무 수평에 가까우면 보정
+            angle = Mathf.Clamp(angle, 20f, 160f);
+        }
+
+        // 📐 최종 벡터 계산
+        float radians = angle * Mathf.Deg2Rad;
+        shootDirection = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)).normalized;
+
+        Debug.DrawRay(firePoint.position, shootDirection * 5f, Color.yellow);
+        Debug.Log($"📐 최종 발사 각도: {angle}°, shootDirection: {shootDirection}");
     }
+
+
+
 
     void UpdateGhostBubble(List<Vector2> points)
     {
@@ -71,8 +101,7 @@ public class BubbleShooter : MonoBehaviour
         Vector2 lastPoint = points[^1];
         Vector2 secondLastPoint = points[^2];
 
-        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized,
-                                             Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
+        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized, Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
 
         if (hit.collider != null && hit.collider.CompareTag("Bubble"))
         {
@@ -100,7 +129,7 @@ public class BubbleShooter : MonoBehaviour
         ghostBubbleInstance.SetActive(true);
         ghostBubbleInstance.transform.position = ghostPos;
 
-        Debug.Log($"👻 GhostBubble 위치 변경: Grid=({gx}, {gy}), WorldPos={ghostPos}");
+        //Debug.Log($"👻 GhostBubble 위치 변경: Grid=({gx}, {gy}), WorldPos={ghostPos}");
     }
 
     bool IsAdjacentFreeCell(int baseX, int baseY, int checkX, int checkY)
@@ -129,6 +158,7 @@ public class BubbleShooter : MonoBehaviour
 
     private void ReleaseShot()
     {
+        //Debug.Log("🎯 ReleaseShot called");
         if (!isAiming) return;
 
         FireBubble();
@@ -168,7 +198,7 @@ public class BubbleShooter : MonoBehaviour
                 float traveled = Vector2.Distance(currentPos, hit.point);
                 remainingDist -= traveled;
 
-                if (hit.collider.CompareTag("Wall"))
+                if (hit.collider.CompareTag("LeftWall") || hit.collider.CompareTag("RightWall"))
                 {
                     currentDir = Vector2.Reflect(currentDir, hit.normal);
                     currentPos = hit.point + currentDir * 0.01f; // 중복 충돌 방지 약간 이동
@@ -228,21 +258,25 @@ public class BubbleShooter : MonoBehaviour
 
     void FireBubble()
     {
-        GameObject bubble = Instantiate(bubblePrefab, firePoint.position, Quaternion.identity);
-        Rigidbody2D rb = bubble.GetComponent<Rigidbody2D>();
-        if (rb != null)
+        //Debug.Log("🎯 FireBubble called");
+        GameObject bubble = Instantiate(bubbleProjectilePrefab, firePoint.position, Quaternion.identity);
+
+        var projectile = bubble.GetComponent<BubbleProjectile>();
+        if (projectile != null)
         {
-            rb.linearVelocity = shootDirection * shootForce;
+            Debug.Log($"🚀 Init 전달 직전 shootDirection = {shootDirection}, Magnitude = {shootDirection.magnitude}, Force = {shootForce}");
+            projectile.Init(shootDirection, shootForce);
+        }
+        else
+        {
+            Debug.LogError("💥 발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
         }
 
+        // 로그 예시
         float angle = Vector2.SignedAngle(Vector2.right, shootDirection);
-        angle = Mathf.Abs(angle);
-
-        List<Vector2> trajectory = CalculateTrajectory(firePoint.position, shootDirection);
-        Vector2 finalContact = trajectory[trajectory.Count - 1];
+        Vector2 finalContact = CalculateTrajectory(firePoint.position, shootDirection).Last();
         Vector2 gridPos = gridGenerator.FindNearestGridPosition(finalContact);
         (int gridX, int gridY) = gridGenerator.FindNearestGridIndex(gridPos);
-
-        Debug.Log($"🟢 Bubble 발사! 방향 각도: {angle:F1}°, 그리드 좌표: ({gridX}, {gridY})");
+        Debug.Log($"🟢 Bubble 발사! 각도: {angle:F1}°, 예상 격자 위치: ({gridX}, {gridY})");
     }
 }
