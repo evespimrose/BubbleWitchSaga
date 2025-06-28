@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class BubbleGridGenerator : MonoBehaviour
@@ -102,7 +103,6 @@ public class BubbleGridGenerator : MonoBehaviour
         float xOffset = bubbleRadius * 2f;
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
 
-        // 오리진 기준 설정 (기즈모와 동일)
         Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
 
         float minDist = float.MaxValue;
@@ -136,16 +136,14 @@ public class BubbleGridGenerator : MonoBehaviour
 
         Vector2 localPos = worldPos - origin;
 
-        // 대략적인 행 계산
         int y = Mathf.RoundToInt(-localPos.y / yOffset);
-
-        // 짝수/홀수 줄 구분해 x 계산
         float xPosOffset = (y % 2 == 1) ? bubbleRadius : 0f;
         int x = Mathf.RoundToInt((localPos.x - xPosOffset) / xOffset);
 
         x = Mathf.Clamp(x, 0, columns - 1);
         y = Mathf.Clamp(y, 0, rows - 1);
 
+        Debug.Log($"FindNearestGridIndex 완료: Grid=({x},{y}), contactPoint={worldPos}");
         return (x, y);
     }
 
@@ -193,23 +191,36 @@ public class BubbleGridGenerator : MonoBehaviour
         return connected;
     }
 
+    // 유틸 함수: 짝수/홀수 줄에 따른 이웃 오프셋 반환
+    public int[][] GetRowOffsets(int row)
+    {
+        int[][] evenRowOffsets = new int[][]
+        {
+            new int[]{-1, 0}, // 좌
+            new int[]{1, 0},  // 우
+            new int[]{-1, -1}, // 좌상
+            new int[]{0, -1},  // 우상
+            new int[]{-1, 1}, // 좌하
+            new int[]{0, 1}   // 우하
+        };
+
+        int[][] oddRowOffsets = new int[][]
+        {
+            new int[]{-1, 0}, // 좌
+            new int[]{1, 0},  // 우
+            new int[]{0, -1}, // 좌상
+            new int[]{1, -1}, // 우상
+            new int[]{0, 1},  // 좌하
+            new int[]{1, 1}   // 우하
+        };
+
+        return (row % 2 == 0) ? evenRowOffsets : oddRowOffsets;
+    }
 
     public List<(int, int)> GetNeighbors(int x, int y)
     {
         List<(int, int)> neighbors = new List<(int, int)>();
-
-        int[][] evenRowOffsets = new int[][]
-        {
-            new int[]{-1, 0}, new int[]{0, -1}, new int[]{1, -1},
-            new int[]{1, 0}, new int[]{1, 1}, new int[]{0, 1}
-        };
-        int[][] oddRowOffsets = new int[][]
-        {
-            new int[]{-1, 0}, new int[]{-1, -1}, new int[]{0, -1},
-            new int[]{1, 0}, new int[]{0, 1}, new int[]{-1, 1}
-        };
-
-        int[][] offsets = (y % 2 == 0) ? evenRowOffsets : oddRowOffsets;
+        int[][] offsets = GetRowOffsets(y);
 
         foreach (var offset in offsets)
         {
@@ -231,83 +242,106 @@ public class BubbleGridGenerator : MonoBehaviour
         return grid[y, x];
     }
 
-
-    public (int, int) FindClosestFreeNeighborGrid(int bx, int by, Vector2 shootDir)
+    public (int, int) FindClosestFreeNeighborGrid(int bx, int by, Vector2 shootDir, Vector2 contactPoint)
     {
         var neighbors = GetNeighbors(bx, by);
 
-        float maxDot = -1f;
-        (int, int) bestCell = (bx, by);
+        Vector2 checkOrigin = contactPoint - shootDir.normalized * 0.1f;
 
-        Vector2 baseWorldPos = GridToWorld(bx, by);
-        Vector2 dirNorm = shootDir.normalized;
+        float bestScore = float.MaxValue;
+        (int, int) bestCell = (-1, -1);
 
-        foreach (var cell in neighbors)
+        foreach ((int nx, int ny) in neighbors)
         {
-            int nx = cell.Item1;
-            int ny = cell.Item2;
-
-            if (IsCellOccupied(nx, ny)) continue;
-
-            Vector2 neighborWorldPos = GridToWorld(nx, ny);
-            Vector2 toNeighbor = (neighborWorldPos - baseWorldPos).normalized;
-
-            float dot = Vector2.Dot(dirNorm, toNeighbor);
-            if (dot > maxDot)
+            if (!IsCellOccupied(nx, ny))
             {
-                maxDot = dot;
-                bestCell = (nx, ny);
+                Vector2 neighborWorld = GridToWorld(nx, ny);
+                Vector2 toNeighborDir = (neighborWorld - checkOrigin);
+
+                float finalScore = toNeighborDir.magnitude;
+
+                Debug.Log($"contactPoint = {contactPoint.x}, {contactPoint.y} | checkOrigin = {checkOrigin.x}, {checkOrigin.y} |  currentCell=({nx},{ny})");
+
+                if (finalScore < bestScore)
+                {
+                    bestScore = finalScore;
+                    bestCell = (nx, ny);
+
+                    // 시각화 및 디버깅
+                    Debug.DrawLine(checkOrigin, neighborWorld, new Color(1f, 0.5f, 0f), 3f); // orange
+                    Debug.DrawRay(checkOrigin, shootDir.normalized * 1.2f, Color.black, 3f);   // black
+                    Debug.DrawRay(checkOrigin, -shootDir.normalized * 0.1f, Color.blue, 3f);   // short backward
+                }
+
             }
         }
+
+        if (bestCell == (-1, -1))
+            Debug.LogWarning("FindClosestFreeNeighborGrid 실패: 모든 인접 셀이 점유됨");
+
+        Debug.Log($"최종 결정 셀: ({bestCell.Item1}, {bestCell.Item2}), 발사방향: {shootDir}, 기준점: {checkOrigin}");
 
         return bestCell;
     }
 
     public (int, int) SnapBubbleToGrid(GameObject bubble, Vector2 contactPoint)
     {
-        // 가장 가까운 그리드 인덱스 계산
         (int x, int y) = FindNearestGridIndex(contactPoint);
+        Debug.Log($"FindNearestGridIndex 완료: Grid=({x},{y}), contactPoint={contactPoint}");
 
-        // 그리드 범위 초과 방지
         if (x < 0 || x >= columns || y < 0 || y >= rows)
         {
-            Debug.LogWarning($"❌ SnapBubbleToGrid 실패: 범위 밖 인덱스 ({x},{y})");
+            Debug.LogWarning($"SnapBubbleToGrid 실패: 범위 밖 인덱스 ({x},{y})");
             return (-1, -1);
         }
 
-        // 이미 점유된 셀이면 방향 기반 인접한 빈 셀 찾기
+        Debug.LogWarning($"SnapBubbleToGrid 성공: 범위 안 인덱스 : ({x},{y})");
+
         if (IsCellOccupied(x, y))
         {
-            Rigidbody2D rb = bubble.GetComponent<Rigidbody2D>();
-            Vector2 shootDir = rb != null ? rb.linearVelocity.normalized : Vector2.down;
+            Debug.LogWarning($"IsCellOccupied 성공: 이미 점유된 셀 : ({x},{y})");
 
-            (x, y) = FindClosestFreeNeighborGrid(x, y, shootDir);
+            Vector2 shootDir = Vector2.down;
+
+            BubbleProjectile bp = bubble.GetComponent<BubbleProjectile>();
+            if (bp != null)
+            {
+                shootDir = bp.GetCachedDirection();
+                if (shootDir == Vector2.zero) shootDir = Vector2.down;
+            }
+
+            Debug.LogWarning($"FindClosestFreeNeighborGrid 시도 : 이미 점유된 셀, 발사방향 : ({x},{y}, {shootDir})");
+            (x, y) = FindClosestFreeNeighborGrid(x, y, shootDir, contactPoint);
 
             if (IsCellOccupied(x, y))
             {
-                Debug.LogWarning($"⚠️ SnapBubbleToGrid 실패: 대체 가능한 인접 셀도 없음 ({x},{y})");
+                Debug.LogWarning($"SnapBubbleToGrid 실패: 대체 가능한 인접 셀도 없음 ({x},{y})");
                 return (-1, -1);
             }
         }
 
-        // 실제 위치 이동 및 그리드 등록
         Vector2 snappedWorldPos = GridToWorld(x, y);
         bubble.transform.position = snappedWorldPos;
         SetCellOccupied(x, y, bubble);
 
-        // Bubble 컴포넌트가 있다면 gridX, gridY 설정
+        Vector3 center = bubble.transform.position;
+        float size = 0.2f;
+
+        Debug.DrawLine(center + new Vector3(-size, -size), center + new Vector3(-size, size), Color.yellow, 3f);
+        Debug.DrawLine(center + new Vector3(-size, size), center + new Vector3(size, size), Color.yellow, 3f);
+        Debug.DrawLine(center + new Vector3(size, size), center + new Vector3(size, -size), Color.yellow, 3f);
+        Debug.DrawLine(center + new Vector3(size, -size), center + new Vector3(-size, -size), Color.yellow, 3f);
+
         Bubble bubbleComp = bubble.GetComponent<Bubble>();
         if (bubbleComp != null)
         {
             bubbleComp.gridX = x;
             bubbleComp.gridY = y;
-            //bubbleComp.isAttached = true; // 이 프로퍼티는 선택 사항
         }
 
-        Debug.Log($"📌 SnapBubbleToGrid 완료: Grid=({x},{y}), WorldPos={snappedWorldPos}");
+        Debug.Log($"SnapBubbleToGrid 완료: Grid=({x},{y}), WorldPos={snappedWorldPos}");
         return (x, y);
     }
-
 
     public Vector2 GridToWorld(int x, int y)
     {
@@ -345,5 +379,4 @@ public class BubbleGridGenerator : MonoBehaviour
         }
 #endif
     }
-
 }

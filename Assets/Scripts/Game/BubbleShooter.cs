@@ -16,8 +16,8 @@ public class BubbleShooter : MonoBehaviour
     public int maxBounces = 3;
 
     [Header("Trajectory Dot Settings")]
-    public GameObject trajectoryDotPrefab; // 작고 투명한 원형 스프라이트 프리팹
-    public float dotSpacing = 0.3f;        // 점 간격(유니티 월드 단위)
+    public GameObject trajectoryDotPrefab;
+    public float dotSpacing = 0.3f;
 
     private Camera cam;
     private bool isAiming;
@@ -27,6 +27,8 @@ public class BubbleShooter : MonoBehaviour
     private @InputSystem_Actions inputActions;
 
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
+
+    private Vector2? lastGhostGridWorldPos = null; // 직전 위치 기억용 필드 추가
 
     void Awake()
     {
@@ -54,6 +56,7 @@ public class BubbleShooter : MonoBehaviour
         UpdateTrajectoryDots(trajectoryPoints);
         UpdateGhostBubble(trajectoryPoints);
     }
+
     void UpdateShootDirection()
     {
         Vector2 mouseWorldPos = cam.ScreenToWorldPoint(inputActions.Gameplay.PointerPosition.ReadValue<Vector2>());
@@ -61,34 +64,23 @@ public class BubbleShooter : MonoBehaviour
 
         float angle = Vector2.SignedAngle(Vector2.right, rawDirection);
 
-        // 🎯 아래 방향으로 향할 경우, 좌/우 구분해서 강제 고정 (보정 처리 X)
         if (rawDirection.y <= 0f)
         {
             if (rawDirection.x < 0f)
-            {
-                angle = 160f; // 왼쪽 아래 → 좌측 상단 방향
-            }
+                angle = 160f;
             else
-            {
-                angle = 20f;  // 오른쪽 아래 → 우측 상단 방향
-            }
+                angle = 20f;
         }
         else
         {
-            // 🔒 위쪽을 향하지만 너무 수평에 가까우면 보정
             angle = Mathf.Clamp(angle, 20f, 160f);
         }
 
-        // 📐 최종 벡터 계산
         float radians = angle * Mathf.Deg2Rad;
         shootDirection = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)).normalized;
 
         Debug.DrawRay(firePoint.position, shootDirection * 5f, Color.yellow);
-        Debug.Log($"📐 최종 발사 각도: {angle}°, shootDirection: {shootDirection}");
     }
-
-
-
 
     void UpdateGhostBubble(List<Vector2> points)
     {
@@ -105,43 +97,59 @@ public class BubbleShooter : MonoBehaviour
 
         if (hit.collider != null && hit.collider.CompareTag("Bubble"))
         {
-            HandleGhostBubblePlacement(hit.collider.transform.position, lastPoint, secondLastPoint);
+            Vector2 shootDir = (lastPoint - secondLastPoint).normalized;
+            Vector2 contactPoint = hit.point;
+            HandleGhostBubblePlacement(contactPoint, shootDir);
         }
         else
         {
+            if (lastGhostGridWorldPos.HasValue)
+            {
+                // Do nothing → 유지
+                return;
+            }
+
             SetGhostBubbleActive(false);
         }
     }
 
-    void HandleGhostBubblePlacement(Vector2 collidedBubblePos, Vector2 lastPoint, Vector2 secondLastPoint)
+    void HandleGhostBubblePlacement(Vector2 contactPoint, Vector2 shootDir)
     {
-        (int bx, int by) = gridGenerator.FindNearestGridIndex(collidedBubblePos);
-        Vector2 shootDir = (lastPoint - secondLastPoint).normalized;
-        (int gx, int gy) = gridGenerator.FindNearestGridIndex(lastPoint);
+        (int gx, int gy) = gridGenerator.FindNearestGridIndex(contactPoint);
 
-        if (!IsAdjacentFreeCell(bx, by, gx, gy))
+        if (gx < 0 || gx >= gridGenerator.columns || gy < 0 || gy >= gridGenerator.rows)
         {
-            (gx, gy) = gridGenerator.FindClosestFreeNeighborGrid(bx, by, shootDir);
+            // 경계 밖인 경우에도 잔류 유지
+            return;
+        }
+
+        if (gridGenerator.IsCellOccupied(gx, gy))
+        {
+            (gx, gy) = gridGenerator.FindClosestFreeNeighborGrid(gx, gy, shootDir, contactPoint);
+            if (gridGenerator.IsCellOccupied(gx, gy))
+            {
+                // 여전히 자리 없을 경우, 이전 위치 유지
+                return;
+            }
         }
 
         Vector2 ghostPos = gridGenerator.GridToWorld(gx, gy);
+
+        // 이전과 같은 위치면 다시 비활성화하지 않음
+        if (lastGhostGridWorldPos.HasValue && Vector2.Distance(lastGhostGridWorldPos.Value, ghostPos) < 0.01f)
+        {
+            // 위치 같으면 그대로 유지 (SetActive 하지 않음)
+            return;
+        }
+
         CreateGhostBubbleIfNeeded();
         ghostBubbleInstance.SetActive(true);
         ghostBubbleInstance.transform.position = ghostPos;
+        lastGhostGridWorldPos = ghostPos;
 
-        //Debug.Log($"👻 GhostBubble 위치 변경: Grid=({gx}, {gy}), WorldPos={ghostPos}");
+        Debug.Log($"GhostBubble 위치 갱신: Grid=({gx},{gy}), WorldPos={ghostPos}");
     }
 
-    bool IsAdjacentFreeCell(int baseX, int baseY, int checkX, int checkY)
-    {
-        var neighbors = gridGenerator.GetNeighbors(baseX, baseY);
-        foreach (var n in neighbors)
-        {
-            if (n.Item1 == checkX && n.Item2 == checkY && !gridGenerator.IsCellOccupied(checkX, checkY))
-                return true;
-        }
-        return false;
-    }
 
     void SetGhostBubbleActive(bool active)
     {
@@ -158,11 +166,9 @@ public class BubbleShooter : MonoBehaviour
 
     private void ReleaseShot()
     {
-        //Debug.Log("🎯 ReleaseShot called");
         if (!isAiming) return;
 
         FireBubble();
-
         isAiming = false;
         ClearTrajectoryDots();
 
@@ -179,34 +185,45 @@ public class BubbleShooter : MonoBehaviour
         points.Add(start);
 
         Vector2 currentPos = start;
-        Vector2 currentDir = dir;
+        Vector2 currentDir = dir.normalized;
         float remainingDist = maxPredictionDistance;
+        float widthOffset = 0.15f;
 
         for (int i = 0; i < maxBounces; i++)
         {
-            if (remainingDist <= 0f)
-            {
-                points.Add(currentPos);
-                break;
-            }
+            if (remainingDist <= 0f) break;
 
-            RaycastHit2D hit = Physics2D.Raycast(currentPos, currentDir, remainingDist, wallMask | bubbleMask);
-            if (hit.collider != null)
-            {
-                points.Add(hit.point);
+            // 직각 방향 벡터 (왼쪽/오른쪽 offset용)
+            Vector2 normal = new Vector2(-currentDir.y, currentDir.x);
+            Vector2 leftOrigin = currentPos - normal * widthOffset;
+            Vector2 rightOrigin = currentPos + normal * widthOffset;
 
-                float traveled = Vector2.Distance(currentPos, hit.point);
+            RaycastHit2D centerHit = Physics2D.Raycast(currentPos, currentDir, remainingDist, wallMask | bubbleMask);
+            RaycastHit2D leftHit = Physics2D.Raycast(leftOrigin, currentDir, remainingDist, wallMask | bubbleMask);
+            RaycastHit2D rightHit = Physics2D.Raycast(rightOrigin, currentDir, remainingDist, wallMask | bubbleMask);
+
+            // 디버그 선 시각화
+            Debug.DrawRay(currentPos, currentDir * 5f, Color.white, 0.5f);       // 중심
+            Debug.DrawRay(leftOrigin, currentDir * 5f, Color.red, 0.5f);         // 왼쪽
+            Debug.DrawRay(rightOrigin, currentDir * 5f, Color.blue, 0.5f);       // 오른쪽
+
+            // 가장 가까운 Raycast 결과 선택
+            RaycastHit2D finalHit = GetClosestHit(centerHit, leftHit, rightHit);
+
+            if (finalHit.collider != null)
+            {
+                points.Add(finalHit.point);
+                float traveled = Vector2.Distance(currentPos, finalHit.point);
                 remainingDist -= traveled;
 
-                if (hit.collider.CompareTag("LeftWall") || hit.collider.CompareTag("RightWall"))
+                if (finalHit.collider.CompareTag("LeftWall") || finalHit.collider.CompareTag("RightWall"))
                 {
-                    currentDir = Vector2.Reflect(currentDir, hit.normal);
-                    currentPos = hit.point + currentDir * 0.01f; // 중복 충돌 방지 약간 이동
+                    currentDir = Vector2.Reflect(currentDir, finalHit.normal);
+                    currentPos = finalHit.point + currentDir * 0.01f;
                     continue;
                 }
-                else if (hit.collider.CompareTag("Bubble"))
+                else if (finalHit.collider.CompareTag("Bubble"))
                 {
-                    // Bubble 충돌 시 경로 계산 종료
                     break;
                 }
             }
@@ -219,6 +236,29 @@ public class BubbleShooter : MonoBehaviour
 
         return points;
     }
+
+
+    RaycastHit2D GetClosestHit(params RaycastHit2D[] hits)
+    {
+        RaycastHit2D closest = new RaycastHit2D();
+        float minDist = float.MaxValue;
+
+        foreach (var hit in hits)
+        {
+            if (hit.collider != null)
+            {
+                float dist = Vector2.Distance(hit.point, hit.centroid);
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    closest = hit;
+                }
+            }
+        }
+
+        return closest;
+    }
+
 
     void UpdateTrajectoryDots(List<Vector2> points)
     {
@@ -258,25 +298,22 @@ public class BubbleShooter : MonoBehaviour
 
     void FireBubble()
     {
-        //Debug.Log("🎯 FireBubble called");
         GameObject bubble = Instantiate(bubbleProjectilePrefab, firePoint.position, Quaternion.identity);
 
         var projectile = bubble.GetComponent<BubbleProjectile>();
         if (projectile != null)
         {
-            Debug.Log($"🚀 Init 전달 직전 shootDirection = {shootDirection}, Magnitude = {shootDirection.magnitude}, Force = {shootForce}");
             projectile.Init(shootDirection, shootForce);
         }
         else
         {
-            Debug.LogError("💥 발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
+            Debug.LogError("발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
         }
 
-        // 로그 예시
         float angle = Vector2.SignedAngle(Vector2.right, shootDirection);
         Vector2 finalContact = CalculateTrajectory(firePoint.position, shootDirection).Last();
         Vector2 gridPos = gridGenerator.FindNearestGridPosition(finalContact);
         (int gridX, int gridY) = gridGenerator.FindNearestGridIndex(gridPos);
-        Debug.Log($"🟢 Bubble 발사! 각도: {angle:F1}°, 예상 격자 위치: ({gridX}, {gridY})");
+        Debug.Log($"Bubble 발사! 각도: {angle:F1}°, 예상 격자 위치: ({gridX}, {gridY})");
     }
 }

@@ -14,15 +14,15 @@ public class GameManager : Singleton<GameManager>
         {
             Debug.Log($"💥 연결된 {color} 버블 {connected.Count}개 제거");
 
-            foreach (var (x, y) in connected)
-            {
-                GameObject bubble = bubbleGridGenerator.GetBubbleAt(x, y);
-                if (bubble != null)
-                {
-                    Destroy(bubble);
-                    bubbleGridGenerator.SetCellOccupied(x, y, null);
-                }
-            }
+            //foreach (var (x, y) in connected)
+            //{
+            //    GameObject bubble = bubbleGridGenerator.GetBubbleAt(x, y);
+            //    if (bubble != null)
+            //    {
+            //        Destroy(bubble);
+            //        bubbleGridGenerator.SetCellOccupied(x, y, null);
+            //    }
+            //}
         }
     }
 }
