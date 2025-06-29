@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,8 +8,7 @@ public class Bubble : MonoBehaviour
     public int gridY;
     public BubbleColor bubbleColor;
 
-    [SerializeField]
-    private bool isTarget = false;
+    [SerializeField] private bool isTarget = false;
     public bool IsTarget
     {
         get => isTarget;
@@ -20,14 +20,15 @@ public class Bubble : MonoBehaviour
     }
 
     private SpriteRenderer spriteRenderer;
+    private Collider2D circlecollider;
 
     void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
+        circlecollider = GetComponent<CircleCollider2D>();
         if (spriteRenderer == null)
-        {
             Debug.LogError("Bubble: SpriteRenderer가 없음!");
-        }
+
         UpdateAlpha();
     }
 
@@ -42,10 +43,41 @@ public class Bubble : MonoBehaviour
 
     private void UpdateAlpha()
     {
-        if (spriteRenderer == null) return;
-
-        SetAlpha(isTarget ? 0f : 1f);
+        SetAlpha(isTarget ? 0.5f : 1f);
     }
+
+    public void StartDropAnimation(Vector3 targetPos, float duration = 1f)
+    {
+        StartCoroutine(DropAnimationRoutine(targetPos, duration));
+    }
+
+    private IEnumerator DropAnimationRoutine(Vector3 targetPos, float duration)
+    {
+        if (circlecollider != null) { circlecollider.enabled = false; }
+        Vector3 startPos = transform.position;
+        float elapsed = 0f;
+
+        float ySpeedMultiplier = Random.Range(0.9f, 1.1f);
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+            float tSquared = t * t;
+
+            float newY = Mathf.Lerp(startPos.y, targetPos.y, tSquared * ySpeedMultiplier);
+            float newX = Mathf.Lerp(startPos.x, targetPos.x, t);
+            float newZ = Mathf.Lerp(startPos.z, targetPos.z, t);
+
+            transform.position = new Vector3(newX, newY, newZ);
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.position = targetPos;
+        Destroy(gameObject);
+    }
+
 }
 
 public enum BubbleColor
