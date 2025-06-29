@@ -30,6 +30,8 @@ public class BubbleShooter : MonoBehaviour
 
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
 
+    public bool canAim = true;
+
     private Vector2? lastTargetGridWorldPos = null;
 
     void Awake()
@@ -171,6 +173,7 @@ public class BubbleShooter : MonoBehaviour
 
     private void StartAiming()
     {
+        if (!canAim) return;
         isAiming = true;
 
         currentColor = GetRandomColor();
@@ -193,9 +196,9 @@ public class BubbleShooter : MonoBehaviour
             Destroy(targetBubbleInstance);
         }
 
-        // 발사 후 타겟 버블 참조 해제
         targetBubbleInstance = null;
         lastTargetGridWorldPos = null;
+        canAim = false;
     }
 
     void FireBubble()
@@ -214,14 +217,17 @@ public class BubbleShooter : MonoBehaviour
         if (projectile != null)
         {
             projectile.bubbleColor = currentColor;
-            projectile.Init(shootDirection, shootForce);
+
+            if (targetBubbleInstance != null)
+            {
+                projectile.Init(shootDirection, shootForce, targetBubbleInstance);
+            }
         }
         else
         {
             Debug.LogError("발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
         }
     }
-
 
     List<Vector2> CalculateTrajectory(Vector2 start, Vector2 dir)
     {

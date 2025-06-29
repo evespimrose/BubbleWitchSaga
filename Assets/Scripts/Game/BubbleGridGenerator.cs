@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 using UnityEngine;
 
 public class BubbleGridGenerator : MonoBehaviour
@@ -16,7 +18,7 @@ public class BubbleGridGenerator : MonoBehaviour
     private GameObject[,] grid;          // 일반 버블 저장용
     private GameObject[,] targetGrid;    // 타겟 버블 저장용
 
-    void OnValidate()
+    private void OnValidate()
     {
         if (gridData == null || gridData.Length != rows * columns)
         {
@@ -26,16 +28,21 @@ public class BubbleGridGenerator : MonoBehaviour
                 gridData[i] = new BubbleCell();
             }
         }
-    }
 
-    void Start()
-    {
         grid = new GameObject[rows, columns];
         targetGrid = new GameObject[rows, columns];
-        GenerateGrid();
+
+        foreach (Transform child in transform)
+#if UNITY_EDITOR
+            DestroyImmediate(child.gameObject);
+#else
+    Destroy(child.gameObject);
+#endif
+
+        ClearAllBubbles();
     }
 
-    void GenerateGrid()
+    public void GenerateGrid()
     {
         float xOffset = bubbleRadius * 2f;
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
@@ -70,12 +77,79 @@ public class BubbleGridGenerator : MonoBehaviour
                     bubbleComp.gridY = y;
                     bubbleComp.bubbleColor = cell.bubbleColor;
                     bubbleComp.IsTarget = false; // 일반 버블
+                    Debug.Log($"생성: {x},{y}");
                 }
 
                 grid[y, x] = bubble;
             }
         }
     }
+
+    public void SwapGrid()
+    {
+        for (int y = 0; y < rows; y++)
+        {
+            for (int x = 0; x < columns; x++)
+            {
+                int idx = y * columns + x;
+                if (idx < 0 || idx >= gridData.Length) continue;
+
+                BubbleCell cell = gridData[idx];
+                GameObject current = grid[y, x];
+
+                if (cell.hasBubble)
+                {
+                    GameObject prefab = GetPrefabByColor(cell.bubbleColor);
+                    if (prefab == null) continue;
+
+                    if (current == null)
+                    {
+                        // 버블이 없으면 새로 생성
+                        Vector2 pos = GridToWorld(x, y);
+                        GameObject newBubble = Instantiate(prefab, pos, Quaternion.identity, transform);
+                        Bubble bubbleComp = newBubble.GetComponent<Bubble>();
+                        if (bubbleComp != null)
+                        {
+                            bubbleComp.gridX = x;
+                            bubbleComp.gridY = y;
+                            bubbleComp.bubbleColor = cell.bubbleColor;
+                            bubbleComp.IsTarget = false;
+                        }
+
+                        grid[y, x] = newBubble;
+                    }
+                    else
+                    {
+                        // 이미 버블이 있으면 색깔만 바꾸기 (프리팹은 그대로)
+                        Bubble bubbleComp = current.GetComponent<Bubble>();
+                        if (bubbleComp != null && bubbleComp.bubbleColor != cell.bubbleColor)
+                        {
+                            bubbleComp.bubbleColor = cell.bubbleColor;
+
+                            // 색 시각적 적용 (스프라이트 색이 BubbleColor에 따라 달라지면 필요)
+                            SpriteRenderer sr = current.GetComponent<SpriteRenderer>();
+                            if (sr != null)
+                                sr.color = cell.bubbleColor.ToColor();
+                        }
+                    }
+                }
+                else
+                {
+                    // gridData가 false인데 버블이 남아있다면 제거
+                    if (current != null)
+                    {
+#if UNITY_EDITOR
+                        DestroyImmediate(current);
+#else
+                    Destroy(current);
+#endif
+                        grid[y, x] = null;
+                    }
+                }
+            }
+        }
+    }
+
 
     public GameObject GetPrefabByColor(BubbleColor color)
     {
@@ -136,6 +210,12 @@ public class BubbleGridGenerator : MonoBehaviour
     {
         if (!IsInGridRange(x, y)) return;
 
+        if (bubble == null)
+        {
+            Debug.LogError("SetCellOccupied: bubble이 null입니다. 셀을 비우려면 ClearCell을 사용하세요.");
+            return;
+        }
+
         Bubble bubbleComp = bubble.GetComponent<Bubble>();
         if (bubbleComp == null)
         {
@@ -158,6 +238,21 @@ public class BubbleGridGenerator : MonoBehaviour
                 Destroy(grid[y, x]);
             }
             grid[y, x] = bubble;
+        }
+    }
+
+    public void ClearCell(int x, int y)
+    {
+        if (!IsInGridRange(x, y)) return;
+
+        if (grid[y, x] != null)
+        {
+            grid[y, x] = null;
+        }
+
+        if (targetGrid[y, x] != null)
+        {
+            targetGrid[y, x] = null;
         }
     }
 
@@ -259,7 +354,6 @@ public class BubbleGridGenerator : MonoBehaviour
         Bubble bubble = bubbleObj.GetComponent<Bubble>();
         if (bubble == null || !bubble.IsTarget)
         {
-            Debug.LogWarning("Snap 실패: 대상이 타겟 버블이 아님");
             return;
         }
 
@@ -268,13 +362,11 @@ public class BubbleGridGenerator : MonoBehaviour
 
         if (gx < 0 || gx >= columns || gy < 0 || gy >= rows)
         {
-            Debug.LogWarning($"Snap 실패: 그리드 범위를 벗어남 (gx:{gx}, gy:{gy})");
             return;
         }
 
         if (IsCellOccupied(gx, gy))
         {
-            Debug.LogWarning($"Snap 실패: 이미 점유된 셀 (gx:{gx}, gy:{gy})");
             return;
         }
 
@@ -287,15 +379,182 @@ public class BubbleGridGenerator : MonoBehaviour
 
         bubbleObj.transform.SetParent(transform);
 
-        Debug.Log($"✅ 타겟 버블 그리드 편입 완료: ({gx}, {gy})");
-
         GameManager.Instance.MarkConnectedGroup(gx, gy, bubble.bubbleColor);
     }
+
+    public List<(int, int)> GetConnectedSameColorBubbles(int startX, int startY, BubbleColor color)
+    {
+        List<(int, int)> connected = new List<(int, int)>();
+        bool[,] visited = new bool[rows, columns];
+
+        Queue<(int, int)> queue = new Queue<(int, int)>();
+        queue.Enqueue((startX, startY));
+        visited[startY, startX] = true;
+
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+            connected.Add((x, y));
+
+            foreach (var (nx, ny) in GetNeighbors(x, y))
+            {
+                if (!IsInGridRange(nx, ny))
+                {
+                    continue;
+                }
+
+                if (visited[ny, nx]) continue;
+
+                GameObject neighbor = grid[ny, nx];
+                if (neighbor == null) continue;
+
+                Bubble neighborBubble = neighbor.GetComponent<Bubble>();
+                if (neighborBubble != null && neighborBubble.bubbleColor == color)
+                {
+                    visited[ny, nx] = true;
+                    queue.Enqueue((nx, ny));
+                }
+            }
+
+        }
+
+        return connected;
+    }
+    public void CheckAndDropFloatingBubbles()
+    {
+        bool[,] visited = new bool[rows, columns];
+        Queue<(int x, int y)> queue = new Queue<(int, int)>();
+
+        // 1. 윗줄에 붙은 버블부터 BFS 시작 (붙어있는 그룹 판별용)
+        for (int x = 0; x < columns; x++)
+        {
+            GameObject bubble = GetBubbleAt(x, 0);
+            if (bubble != null)
+            {
+                visited[0, x] = true;
+                queue.Enqueue((x, 0));
+            }
+        }
+
+        // 2. BFS로 붙어있는 버블 모두 방문 처리
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+
+            foreach (var (nx, ny) in GetNeighbors(x, y))
+            {
+                if (!IsInGridRange(nx, ny)) continue;
+                if (visited[ny, nx]) continue;
+
+                GameObject neighborBubble = GetBubbleAt(nx, ny);
+                if (neighborBubble != null)
+                {
+                    visited[ny, nx] = true;
+                    queue.Enqueue((nx, ny));
+                }
+            }
+        }
+
+        // 제거된 버블 좌표 저장용 리스트
+        List<(int x, int y)> removedBubbles = new List<(int x, int y)>();
+
+        // 3. 방문되지 않은 버블(떠있는 버블) 처리: 그리드에서 제거 및 낙하 애니메이션 시작
+        for (int y = 0; y < rows; y++)
+        {
+            for (int x = 0; x < columns; x++)
+            {
+                if (!visited[y, x])
+                {
+                    GameObject floatingBubble = GetBubbleAt(x, y);
+
+                    if (floatingBubble != null)
+                    {
+                        // 제거 대상 좌표 저장
+                        Debug.Log($"떠있는 버블발견 : {x},{y}");
+
+                        removedBubbles.Add((x, y));
+
+                        // 3-1. 그리드에서 버블 제거 (null 처리)
+                        grid[y, x] = null;
+
+                        Bubble bubbleComp = floatingBubble.GetComponent<Bubble>();
+                        if (bubbleComp != null)
+                        {
+                            bubbleComp.IsTarget = false;
+
+                            // 낙하할 목표 위치 (현재 위치에서 아래로 5 유닛 떨어진 지점)
+                            Vector3 targetPos = floatingBubble.transform.position + Vector3.down * 10f;
+
+                            // 코루틴 실행
+                            bubbleComp.StartDropAnimation(targetPos, 1.0f);
+                        }
+                        else
+                        {
+                            Destroy(floatingBubble);
+                        }
+
+                        floatingBubble.transform.SetParent(null);
+                    }
+                }
+            }
+        }
+    }
+    public GameObject GetBubbleAt(int x, int y)
+    {
+        if (x < 0 || x >= columns || y < 0 || y >= rows)
+            return null;
+        return grid[y, x];
+    }
+
+    public void LoadFrom(BubbleLevelData level)
+    {
+        if (level.gridData.Length != rows * columns)
+        {
+            Debug.LogError("잘못된 gridData 크기");
+            return;
+        }
+
+        gridData = level.gridData;
+        ClearAllBubbles(); // 기존 제거
+        GenerateGrid();    // 새로 생성
+    }
+
+    public void ClearAllBubbles()
+    {
+        // 일반 버블 제거
+        for (int y = 0; y < rows; y++)
+        {
+            for (int x = 0; x < columns; x++)
+            {
+                if (grid[y, x] != null)
+                {
+#if UNITY_EDITOR
+                    DestroyImmediate(grid[y, x]);
+#else
+                    Destroy(grid[y, x]);
+#endif
+                    grid[y, x] = null;
+                }
+
+                if (targetGrid[y, x] != null)
+                {
+#if UNITY_EDITOR
+                    DestroyImmediate(targetGrid[y, x]);
+#else
+                    Destroy(targetGrid[y, x]);
+#endif
+                    targetGrid[y, x] = null;
+                }
+            }
+        }
+    }
+
+
 
     void OnDrawGizmos()
     {
 #if UNITY_EDITOR
-        Gizmos.color = Color.green;
+        Gizmos.color = UnityEngine.Color.green;
         float xOffset = bubbleRadius * 2f;
         float yOffset = Mathf.Sqrt(3f) * bubbleRadius;
         Vector2 origin = new Vector2(-(columns - 1) * xOffset / 2f, (rows - 1) * yOffset / 2f + 5.95f);
