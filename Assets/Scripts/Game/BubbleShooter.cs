@@ -6,8 +6,10 @@ using System.Linq;
 public class BubbleShooter : MonoBehaviour
 {
     [Header("Bubble Settings")]
-    public GameObject bubbleProjectilePrefab;
-    public GameObject ghostBubblePrefab;
+    public List<GameObject> bubbleProjectilePrefabs; // Red, Blue, Green
+    public List<GameObject> targetBubblePrefabs;     // Red, Blue, Green
+    public BubbleColor currentColor = BubbleColor.Red;
+
     public float shootForce = 10f;
     public Transform firePoint;
     public LayerMask wallMask;
@@ -22,20 +24,20 @@ public class BubbleShooter : MonoBehaviour
     private Camera cam;
     private bool isAiming;
     private Vector2 shootDirection;
-    private GameObject ghostBubbleInstance;
+    [SerializeField] private GameObject targetBubbleInstance;
     private BubbleGridGenerator gridGenerator;
-    private @InputSystem_Actions inputActions;
+    private InputSystem_Actions inputActions;
 
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
 
-    private Vector2? lastGhostGridWorldPos = null; // 직전 위치 기억용 필드 추가
+    private Vector2? lastTargetGridWorldPos = null;
 
     void Awake()
     {
         cam = Camera.main;
         gridGenerator = GameManager.Instance.BubbleGridGenerator();
 
-        inputActions = new @InputSystem_Actions();
+        inputActions = new InputSystem_Actions();
         inputActions.Gameplay.Enable();
         inputActions.Gameplay.Fire.started += _ => StartAiming();
         inputActions.Gameplay.Fire.canceled += _ => ReleaseShot();
@@ -52,9 +54,11 @@ public class BubbleShooter : MonoBehaviour
         if (!isAiming) return;
 
         UpdateShootDirection();
+
         List<Vector2> trajectoryPoints = CalculateTrajectory(firePoint.position, shootDirection);
+
         UpdateTrajectoryDots(trajectoryPoints);
-        UpdateGhostBubble(trajectoryPoints);
+        UpdateTargetBubble(trajectoryPoints);
     }
 
     void UpdateShootDirection()
@@ -66,10 +70,7 @@ public class BubbleShooter : MonoBehaviour
 
         if (rawDirection.y <= 0f)
         {
-            if (rawDirection.x < 0f)
-                angle = 160f;
-            else
-                angle = 20f;
+            angle = rawDirection.x < 0f ? 160f : 20f;
         }
         else
         {
@@ -82,44 +83,46 @@ public class BubbleShooter : MonoBehaviour
         Debug.DrawRay(firePoint.position, shootDirection * 5f, Color.yellow);
     }
 
-    void UpdateGhostBubble(List<Vector2> points)
+    void UpdateTargetBubble(List<Vector2> points)
     {
         if (points.Count < 2)
         {
-            SetGhostBubbleActive(false);
+            lastTargetGridWorldPos = null;
             return;
         }
 
         Vector2 lastPoint = points[^1];
         Vector2 secondLastPoint = points[^2];
 
-        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized, Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
+        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized,
+            Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
 
-        if (hit.collider != null && hit.collider.CompareTag("Bubble"))
+        if (hit.collider != null && (hit.collider.CompareTag("Bubble")))
         {
             Vector2 shootDir = (lastPoint - secondLastPoint).normalized;
             Vector2 contactPoint = hit.point;
-            HandleGhostBubblePlacement(contactPoint, shootDir);
+
+            HandleTargetBubblePlacement(contactPoint, shootDir);
+        }
+        else if(hit.collider != null && hit.collider.CompareTag("UpperWall"))
+        {
+            SetTargetBubbleActive(false);
         }
         else
         {
-            if (lastGhostGridWorldPos.HasValue)
-            {
-                // Do nothing → 유지
-                return;
-            }
-
-            SetGhostBubbleActive(false);
+            lastTargetGridWorldPos = null;
         }
     }
 
-    void HandleGhostBubblePlacement(Vector2 contactPoint, Vector2 shootDir)
+    void HandleTargetBubblePlacement(Vector2 contactPoint, Vector2 shootDir)
     {
         (int gx, int gy) = gridGenerator.FindNearestGridIndex(contactPoint);
 
+        Collider2D hitCol = Physics2D.OverlapPoint(contactPoint);
+
         if (gx < 0 || gx >= gridGenerator.columns || gy < 0 || gy >= gridGenerator.rows)
         {
-            // 경계 밖인 경우에도 잔류 유지
+            lastTargetGridWorldPos = null;
             return;
         }
 
@@ -128,40 +131,53 @@ public class BubbleShooter : MonoBehaviour
             (gx, gy) = gridGenerator.FindClosestFreeNeighborGrid(gx, gy, shootDir, contactPoint);
             if (gridGenerator.IsCellOccupied(gx, gy))
             {
-                // 여전히 자리 없을 경우, 이전 위치 유지
+                lastTargetGridWorldPos = null;
                 return;
             }
         }
 
-        Vector2 ghostPos = gridGenerator.GridToWorld(gx, gy);
+        Vector2 targetPos = gridGenerator.GridToWorld(gx, gy);
 
-        // 이전과 같은 위치면 다시 비활성화하지 않음
-        if (lastGhostGridWorldPos.HasValue && Vector2.Distance(lastGhostGridWorldPos.Value, ghostPos) < 0.01f)
-        {
-            // 위치 같으면 그대로 유지 (SetActive 하지 않음)
+        if (lastTargetGridWorldPos.HasValue && Vector2.Distance(lastTargetGridWorldPos.Value, targetPos) < 0.01f)
             return;
+
+        // 🎯 타겟 버블 생성
+        if (targetBubbleInstance == null)
+        {
+            GameObject targetPrefab = GetTargetPrefabByColor(currentColor);
+            targetBubbleInstance = Instantiate(targetPrefab);
         }
 
-        CreateGhostBubbleIfNeeded();
-        ghostBubbleInstance.SetActive(true);
-        ghostBubbleInstance.transform.position = ghostPos;
-        lastGhostGridWorldPos = ghostPos;
+        targetBubbleInstance.SetActive(true);
+        targetBubbleInstance.transform.position = targetPos;
 
-        Debug.Log($"GhostBubble 위치 갱신: Grid=({gx},{gy}), WorldPos={ghostPos}");
+        var bubbleComp = targetBubbleInstance.GetComponent<Bubble>();
+        if (bubbleComp != null)
+        {
+            bubbleComp.gridX = gx;
+            bubbleComp.gridY = gy;
+            bubbleComp.IsTarget = true;
+            bubbleComp.SetAlpha(0.5f);
+        }
+
+        lastTargetGridWorldPos = targetPos;
     }
 
-
-    void SetGhostBubbleActive(bool active)
+    void SetTargetBubbleActive(bool active)
     {
-        if (ghostBubbleInstance != null)
-            ghostBubbleInstance.SetActive(active);
+        if (targetBubbleInstance != null)
+            targetBubbleInstance.SetActive(active);
     }
 
     private void StartAiming()
     {
         isAiming = true;
-        CreateGhostBubbleIfNeeded();
-        ghostBubbleInstance.SetActive(false);
+
+        currentColor = GetRandomColor();
+
+        // 기존 타겟 버블 참조 해제 (파괴는 하지 않음)
+        targetBubbleInstance = null;
+        lastTargetGridWorldPos = null;
     }
 
     private void ReleaseShot()
@@ -172,12 +188,40 @@ public class BubbleShooter : MonoBehaviour
         isAiming = false;
         ClearTrajectoryDots();
 
-        if (ghostBubbleInstance != null)
+        if (targetBubbleInstance != null && !targetBubbleInstance.gameObject.activeSelf)
         {
-            Destroy(ghostBubbleInstance);
-            ghostBubbleInstance = null;
+            Destroy(targetBubbleInstance);
+        }
+
+        // 발사 후 타겟 버블 참조 해제
+        targetBubbleInstance = null;
+        lastTargetGridWorldPos = null;
+    }
+
+    void FireBubble()
+    {
+        if (targetBubbleInstance != null)
+        {
+            var bubbleComp = targetBubbleInstance.GetComponent<Bubble>();
+            if (bubbleComp != null)
+                bubbleComp.SetAlpha(0f); // 투명화
+        }
+
+        GameObject prefab = GetProjectilePrefabByColor(currentColor);
+        GameObject bubble = Instantiate(prefab, firePoint.position, Quaternion.identity);
+        BubbleProjectile projectile = bubble.GetComponent<BubbleProjectile>();
+
+        if (projectile != null)
+        {
+            projectile.bubbleColor = currentColor;
+            projectile.Init(shootDirection, shootForce);
+        }
+        else
+        {
+            Debug.LogError("발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
         }
     }
+
 
     List<Vector2> CalculateTrajectory(Vector2 start, Vector2 dir)
     {
@@ -193,7 +237,6 @@ public class BubbleShooter : MonoBehaviour
         {
             if (remainingDist <= 0f) break;
 
-            // 직각 방향 벡터 (왼쪽/오른쪽 offset용)
             Vector2 normal = new Vector2(-currentDir.y, currentDir.x);
             Vector2 leftOrigin = currentPos - normal * widthOffset;
             Vector2 rightOrigin = currentPos + normal * widthOffset;
@@ -202,12 +245,10 @@ public class BubbleShooter : MonoBehaviour
             RaycastHit2D leftHit = Physics2D.Raycast(leftOrigin, currentDir, remainingDist, wallMask | bubbleMask);
             RaycastHit2D rightHit = Physics2D.Raycast(rightOrigin, currentDir, remainingDist, wallMask | bubbleMask);
 
-            // 디버그 선 시각화
-            Debug.DrawRay(currentPos, currentDir * 5f, Color.white, 0.5f);       // 중심
-            Debug.DrawRay(leftOrigin, currentDir * 5f, Color.red, 0.5f);         // 왼쪽
-            Debug.DrawRay(rightOrigin, currentDir * 5f, Color.blue, 0.5f);       // 오른쪽
+            Debug.DrawRay(currentPos, currentDir * 5f, Color.white, 0.5f);
+            Debug.DrawRay(leftOrigin, currentDir * 5f, Color.red, 0.5f);
+            Debug.DrawRay(rightOrigin, currentDir * 5f, Color.blue, 0.5f);
 
-            // 가장 가까운 Raycast 결과 선택
             RaycastHit2D finalHit = GetClosestHit(centerHit, leftHit, rightHit);
 
             if (finalHit.collider != null)
@@ -226,6 +267,11 @@ public class BubbleShooter : MonoBehaviour
                 {
                     break;
                 }
+                else if(finalHit.collider.CompareTag("UpperWall"))
+                {
+                    SetTargetBubbleActive(false);
+                    break;
+                }
             }
             else
             {
@@ -236,7 +282,6 @@ public class BubbleShooter : MonoBehaviour
 
         return points;
     }
-
 
     RaycastHit2D GetClosestHit(params RaycastHit2D[] hits)
     {
@@ -258,7 +303,6 @@ public class BubbleShooter : MonoBehaviour
 
         return closest;
     }
-
 
     void UpdateTrajectoryDots(List<Vector2> points)
     {
@@ -290,30 +334,32 @@ public class BubbleShooter : MonoBehaviour
         trajectoryDots.Clear();
     }
 
-    void CreateGhostBubbleIfNeeded()
+    GameObject GetProjectilePrefabByColor(BubbleColor color)
     {
-        if (ghostBubbleInstance == null && ghostBubblePrefab != null)
-            ghostBubbleInstance = Instantiate(ghostBubblePrefab);
+        int index = (int)color;
+        return (index >= 0 && index < bubbleProjectilePrefabs.Count)
+            ? bubbleProjectilePrefabs[index]
+            : bubbleProjectilePrefabs[0];
     }
 
-    void FireBubble()
+    GameObject GetTargetPrefabByColor(BubbleColor color)
     {
-        GameObject bubble = Instantiate(bubbleProjectilePrefab, firePoint.position, Quaternion.identity);
-
-        var projectile = bubble.GetComponent<BubbleProjectile>();
-        if (projectile != null)
-        {
-            projectile.Init(shootDirection, shootForce);
-        }
-        else
-        {
-            Debug.LogError("발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
-        }
-
-        float angle = Vector2.SignedAngle(Vector2.right, shootDirection);
-        Vector2 finalContact = CalculateTrajectory(firePoint.position, shootDirection).Last();
-        Vector2 gridPos = gridGenerator.FindNearestGridPosition(finalContact);
-        (int gridX, int gridY) = gridGenerator.FindNearestGridIndex(gridPos);
-        Debug.Log($"Bubble 발사! 각도: {angle:F1}°, 예상 격자 위치: ({gridX}, {gridY})");
+        int index = (int)color;
+        return (index >= 0 && index < targetBubblePrefabs.Count)
+            ? targetBubblePrefabs[index]
+            : targetBubblePrefabs[0];
     }
+
+    private BubbleColor GetRandomColor()
+    {
+        // BubbleColor enum에서 유효한 색상만 필터링
+        var validColors = System.Enum.GetValues(typeof(BubbleColor))
+                            .Cast<BubbleColor>()
+                            .ToList();
+
+        // 랜덤 인덱스 선택
+        int randomIndex = Random.Range(0, validColors.Count);
+        return validColors[randomIndex];
+    }
+
 }

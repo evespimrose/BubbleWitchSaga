@@ -7,6 +7,7 @@ TagManager:
   - Bubble
   - LeftWall
   - RightWall
+  - UpperWall
   layers:
   - Default
   - TransparentFX

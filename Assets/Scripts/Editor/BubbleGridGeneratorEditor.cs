@@ -40,11 +40,6 @@ public class BubbleGridGeneratorEditor : Editor
                 // Enum Popup (Color)
                 cell.bubbleColor = (BubbleColor)EditorGUILayout.EnumPopup(cell.bubbleColor, GUILayout.Width(cellWidth));
 
-                // Color Preview Box
-                Color previewColor = cell.bubbleColor.ToColor();
-                Rect previewRect = GUILayoutUtility.GetRect(colorBoxSize, colorBoxSize, GUILayout.Width(colorBoxSize));
-                EditorGUI.DrawRect(previewRect, previewColor);
-
                 EditorGUILayout.EndVertical();
             }
             EditorGUILayout.EndHorizontal();
