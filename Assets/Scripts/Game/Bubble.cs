@@ -41,6 +41,11 @@ public class Bubble : MonoBehaviour
         spriteRenderer.color = c;
     }
 
+    public float GetAlpha()
+    {
+        return spriteRenderer.color.a;
+    }
+
     private void UpdateAlpha()
     {
         SetAlpha(isTarget ? 0.5f : 1f);

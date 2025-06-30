@@ -25,9 +25,9 @@ MonoBehaviour:
     bubbleColor: 1
   - hasBubble: 1
     bubbleColor: 1
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 0
@@ -45,9 +45,9 @@ MonoBehaviour:
     bubbleColor: 1
   - hasBubble: 1
     bubbleColor: 1
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 0
@@ -67,19 +67,9 @@ MonoBehaviour:
     bubbleColor: 2
   - hasBubble: 1
     bubbleColor: 2
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
     bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 2
@@ -98,33 +88,13 @@ MonoBehaviour:
   - hasBubble: 1
     bubbleColor: 2
   - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 0
     bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 2
   - hasBubble: 1
     bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 0
-    bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 2
   - hasBubble: 1
@@ -140,6 +110,36 @@ MonoBehaviour:
   - hasBubble: 1
     bubbleColor: 2
   - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 0
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
     bubbleColor: 2
   - hasBubble: 1
     bubbleColor: 2
@@ -151,18 +151,6 @@ MonoBehaviour:
     bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 0
-    bubbleColor: 0
-  - hasBubble: 1
-    bubbleColor: 2
-  - hasBubble: 1
-    bubbleColor: 0
-  - hasBubble: 1
-    bubbleColor: 0
-  - hasBubble: 1
-    bubbleColor: 0
   - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 1
@@ -171,9 +159,21 @@ MonoBehaviour:
     bubbleColor: 2
   - hasBubble: 1
     bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
     bubbleColor: 0
-  - hasBubble: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 2
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
+    bubbleColor: 0
+  - hasBubble: 1
     bubbleColor: 0
   - hasBubble: 0
     bubbleColor: 0

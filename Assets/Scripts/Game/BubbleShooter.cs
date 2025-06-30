@@ -21,12 +21,15 @@ public class BubbleShooter : MonoBehaviour
     public GameObject trajectoryDotPrefab;
     public float dotSpacing = 0.3f;
 
+    private float aimingStartTime;
+
     private Camera cam;
     private bool isAiming;
     private Vector2 shootDirection;
     [SerializeField] private GameObject targetBubbleInstance;
     [SerializeField] private BubbleGridGenerator gridGenerator;
     private InputSystem_Actions inputActions;
+    private float aimStartTime;
 
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
 
@@ -190,23 +193,44 @@ public class BubbleShooter : MonoBehaviour
 
         currentColor = GetRandomColor();
 
-        // 기존 타겟 버블 참조 해제 (파괴는 하지 않음)
+        aimingStartTime = Time.time;
+
         targetBubbleInstance = null;
         lastTargetGridWorldPos = null;
     }
+
 
     private void ReleaseShot()
     {
         if (!isAiming) return;
 
+        float heldTime = Time.time - aimingStartTime;
+
+        if (heldTime <= 0.2f || targetBubbleInstance == null)
+        {
+            isAiming = false;
+            ClearTrajectoryDots();
+            if (targetBubbleInstance != null) Destroy(targetBubbleInstance);
+
+                targetBubbleInstance = null;
+            lastTargetGridWorldPos = null;
+            return;
+        }
+        else if (targetBubbleInstance != null && !targetBubbleInstance.gameObject.activeSelf)
+        {
+            isAiming = false;
+            ClearTrajectoryDots();
+
+            Destroy(targetBubbleInstance);
+
+            targetBubbleInstance = null;
+            lastTargetGridWorldPos = null;
+            return;
+        }
+
         FireBubble();
         isAiming = false;
         ClearTrajectoryDots();
-
-        if (targetBubbleInstance != null && !targetBubbleInstance.gameObject.activeSelf)
-        {
-            Destroy(targetBubbleInstance);
-        }
 
         targetBubbleInstance = null;
         lastTargetGridWorldPos = null;
@@ -218,6 +242,13 @@ public class BubbleShooter : MonoBehaviour
         if (targetBubbleInstance != null)
         {
             var bubbleComp = targetBubbleInstance.GetComponent<Bubble>();
+
+            if (bubbleComp.GetAlpha() == 0f)
+            {
+                canAim = true;
+                return;
+            }
+
             if (bubbleComp != null)
                 bubbleComp.SetAlpha(0f); // 투명화
         }
@@ -230,10 +261,7 @@ public class BubbleShooter : MonoBehaviour
         {
             projectile.bubbleColor = currentColor;
 
-            if (targetBubbleInstance != null)
-            {
-                projectile.Init(shootDirection, shootForce, targetBubbleInstance);
-            }
+            projectile.Init(shootDirection, shootForce, targetBubbleInstance);
         }
         else
         {

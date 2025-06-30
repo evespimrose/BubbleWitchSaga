@@ -54,7 +54,8 @@ public class BubbleProjectile : MonoBehaviour
 
     public void Init(Vector2 direction, float force, GameObject targetBubble)
     {
-        TargetBubble = targetBubble;
+        if (targetBubble != null) TargetBubble = targetBubble;
+
         initialDirection = direction.normalized;
         rb.gravityScale = 0f;
         cachedVelocity = direction.normalized * force;
@@ -75,6 +76,8 @@ public class BubbleProjectile : MonoBehaviour
         }
         else if(collision.CompareTag("UpperWall"))
         {
+            GameManager.Instance.SetAiming(true);
+
             Destroy(gameObject);
         }
         else if (collision.CompareTag("Bubble"))

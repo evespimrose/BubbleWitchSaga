@@ -130,6 +130,7 @@ public class GameManager : Singleton<GameManager>
 
     public void SetAiming(bool enable)
     {
+        Debug.Log($"SetAiming {enable}");
         if (bubbleShooter != null)
             bubbleShooter.canAim = enable;
     }
