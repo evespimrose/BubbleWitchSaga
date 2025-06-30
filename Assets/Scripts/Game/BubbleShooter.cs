@@ -53,6 +53,7 @@ public class BubbleShooter : MonoBehaviour
         InitMagazine();
     }
 
+
     void OnDisable()
     {
         inputActions.Gameplay.Cheat.performed -= _ => OnCheatPerformed();
