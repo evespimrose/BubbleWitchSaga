@@ -12,6 +12,8 @@ public class BubbleGridGenerator : MonoBehaviour
     public int columns = 11;
     public float bubbleRadius = 0.5f;
 
+    public int currentLevel = 0;
+
     [Header("Grid Data")]
     public BubbleCell[] gridData;
 
@@ -40,6 +42,10 @@ public class BubbleGridGenerator : MonoBehaviour
 #endif
 
         ClearAllBubbles();
+    }
+    void Update()
+    {
+        CheckStageClear();
     }
 
     public void GenerateGrid()
@@ -374,10 +380,14 @@ public class BubbleGridGenerator : MonoBehaviour
 
         bubble.IsTarget = false;
 
-        // 그리드에 정식 편입
         SetCellOccupied(gx, gy, bubbleObj);
 
         bubbleObj.transform.SetParent(transform);
+
+        if (gy == rows - 1)
+        {
+            GameManager.Instance.StageFail();
+        }
 
         GameManager.Instance.MarkConnectedGroup(gx, gy, bubble.bubbleColor);
     }
@@ -549,7 +559,14 @@ public class BubbleGridGenerator : MonoBehaviour
         }
     }
 
+    public void CheckStageClear()
+    {
+        if (transform.childCount <= 0)
+        {
+            GameManager.Instance.StageClear();
+        }
 
+    }
 
     void OnDrawGizmos()
     {

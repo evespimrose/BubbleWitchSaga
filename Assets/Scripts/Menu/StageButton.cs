@@ -19,6 +19,14 @@ public class StageButton : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (GameManager.Instance.TopLevel() + 1 < StageNum)
+            button.interactable = false;
+        else
+            button.interactable = true;
+    }
+
     private void OnClickStageButton()
     {
         LoadStage(StageNum);
@@ -26,7 +34,7 @@ public class StageButton : MonoBehaviour
 
     void LoadStage(int stageNumber)
     {
-        string sceneName = $"Stage_{stageNumber}";
-        SceneManager.LoadScene(sceneName);
+        GameManager.Instance.SetLevel(StageNum);
+        SceneManager.LoadScene("Game");
     }
 }

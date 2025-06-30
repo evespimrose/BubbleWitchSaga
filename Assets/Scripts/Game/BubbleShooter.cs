@@ -25,7 +25,7 @@ public class BubbleShooter : MonoBehaviour
     private bool isAiming;
     private Vector2 shootDirection;
     [SerializeField] private GameObject targetBubbleInstance;
-    private BubbleGridGenerator gridGenerator;
+    [SerializeField] private BubbleGridGenerator gridGenerator;
     private InputSystem_Actions inputActions;
 
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
@@ -33,26 +33,38 @@ public class BubbleShooter : MonoBehaviour
     public bool canAim = true;
 
     private Vector2? lastTargetGridWorldPos = null;
-
-    void Awake()
+    void OnEnable()
     {
-        cam = Camera.main;
-        gridGenerator = GameManager.Instance.BubbleGridGenerator();
+        if (cam == null) cam = Camera.main;
 
-        inputActions = new InputSystem_Actions();
+        if (inputActions == null) inputActions = new InputSystem_Actions();
+
         inputActions.Gameplay.Enable();
         inputActions.Gameplay.Fire.started += _ => StartAiming();
         inputActions.Gameplay.Fire.canceled += _ => ReleaseShot();
+        inputActions.Gameplay.Cheat.performed += _ => OnCheatPerformed();
     }
 
-    void OnDestroy()
+    void OnDisable()
     {
-        inputActions.Gameplay.Fire.started -= _ => StartAiming();
+        inputActions.Gameplay.Cheat.performed -= _ => OnCheatPerformed();
         inputActions.Gameplay.Fire.canceled -= _ => ReleaseShot();
+        inputActions.Gameplay.Fire.started -= _ => StartAiming();
+        inputActions.Gameplay.Disable();
+    }
+
+    private void OnCheatPerformed()
+    {
+        if (canAim)
+        {
+            GameManager.Instance.BubbleGridGenerator().ClearAllBubbles();
+        }
     }
 
     void Update()
     {
+        if (gridGenerator == null) gridGenerator = GameManager.Instance.BubbleGridGenerator();
+
         if (!isAiming) return;
 
         UpdateShootDirection();
@@ -367,5 +379,4 @@ public class BubbleShooter : MonoBehaviour
         int randomIndex = Random.Range(0, validColors.Count);
         return validColors[randomIndex];
     }
-
 }

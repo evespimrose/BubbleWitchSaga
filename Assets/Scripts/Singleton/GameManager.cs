@@ -8,22 +8,25 @@ public class GameManager : Singleton<GameManager>
     [SerializeField] private BubbleGridGenerator bubbleGridGenerator;
     [SerializeField] private BubbleShooter bubbleShooter;
 
-    [SerializeField] private bool isLose = false;
-    [SerializeField] private bool isWin = false;
-
     public BubbleGridGenerator BubbleGridGenerator() => bubbleGridGenerator;
     public BubbleShooter BubbleShooter() => bubbleShooter;
+    public int TopLevel() => topLevel;
 
-    [SerializeField] private int currentLevel = 0;
+    [SerializeField] private int currentLevel = 1;
+    [SerializeField] private int topLevel = 0;
     public BubbleLevelData currentLevelData;
     [SerializeField] private List<BubbleLevelData> currentLevelDatas;
 
     public event Action OnWin;
     public event Action OnLose;
 
+    private ClearUI clearUI;
+
     protected override void Awake()
     {
+        base.Awake();
         SceneManager.sceneLoaded += OnSceneLoaded;
+
     }
 
     private void OnDestroy()
@@ -37,6 +40,9 @@ public class GameManager : Singleton<GameManager>
         {
             bubbleGridGenerator = FindFirstObjectByType<BubbleGridGenerator>();
             bubbleShooter = FindFirstObjectByType<BubbleShooter>();
+            clearUI = FindFirstObjectByType<ClearUI>();
+
+            if (clearUI != null) clearUI.gameObject.SetActive(false);
 
             if (bubbleGridGenerator == null || bubbleShooter == null)
             {
@@ -46,27 +52,50 @@ public class GameManager : Singleton<GameManager>
             if (currentLevel >= 0 && currentLevel < currentLevelDatas.Count)
             {
                 currentLevelData = currentLevelDatas[currentLevel];
+                bubbleGridGenerator.currentLevel = currentLevel;
                 bubbleGridGenerator.LoadFrom(currentLevelData);
             }
             else
             {
                 Debug.LogError("currentLevel이 범위를 벗어났습니다.");
             }
+
+            OnWin += () =>
+            {
+                if (bubbleGridGenerator != null && topLevel < bubbleGridGenerator.currentLevel)
+                    topLevel++;
+
+                if (clearUI != null) clearUI.gameObject.SetActive(true);
+
+                clearUI.ShowResult(true);
+
+                SetAiming(false);
+            };
+
+            OnLose += () =>
+            {
+                if (clearUI != null) clearUI.gameObject.SetActive(true);
+
+                clearUI.ShowResult(false);
+
+                SetAiming(false);
+            };
         }
         else
         {
+            OnWin = null;
+            OnLose = null;
+            
             bubbleGridGenerator = null;
             bubbleShooter = null;
             currentLevelData = null;
-            isLose = false;
-            isWin = false;
+            clearUI = null;
         }
     }
 
     public void MarkConnectedGroup(int startX, int startY, BubbleColor color, int minMatchCount = 3)
     {
         var connected = bubbleGridGenerator.GetConnectedSameColorBubbles(startX, startY, color);
-        Debug.Log($"GetConnectedSameColorBubbles 완료, 연결된 버블 {connected.Count}개 제거 시도");
 
         if (connected.Count >= minMatchCount)
         {
@@ -90,8 +119,28 @@ public class GameManager : Singleton<GameManager>
             }
         }
 
-        Debug.Log($"{connected.Count}개 제거 완료. CheckAndDropFloatingBubbles 호출 시도");
         bubbleGridGenerator.CheckAndDropFloatingBubbles();
-        bubbleShooter.canAim = true;
+        SetAiming(true);
+    }
+
+    public void SetLevel(int level)
+    {
+        currentLevel = level;
+    }
+
+    public void SetAiming(bool enable)
+    {
+        if (bubbleShooter != null)
+            bubbleShooter.canAim = enable;
+    }
+
+    public void StageClear()
+    {
+        OnWin?.Invoke();
+    }
+
+    public void StageFail()
+    {
+        OnLose?.Invoke();
     }
 }

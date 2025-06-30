@@ -48,9 +48,9 @@ public class BubbleProjectile : MonoBehaviour
 
                 Destroy(gameObject);
             }
+            GameManager.Instance.SetAiming(true);
         }
     }
-
 
     public void Init(Vector2 direction, float force, GameObject targetBubble)
     {
