@@ -20,7 +20,7 @@ public class BubbleGridGenerator : MonoBehaviour
     private GameObject[,] grid;          // 일반 버블 저장용
     private GameObject[,] targetGrid;    // 타겟 버블 저장용
 
-    private void OnValidate()
+    private void Awake()
     {
         if (gridData == null || gridData.Length != rows * columns)
         {

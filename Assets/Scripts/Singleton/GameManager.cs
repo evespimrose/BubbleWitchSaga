@@ -26,7 +26,6 @@ public class GameManager : Singleton<GameManager>
     {
         base.Awake();
         SceneManager.sceneLoaded += OnSceneLoaded;
-
     }
 
     private void OnDestroy()
@@ -53,6 +52,7 @@ public class GameManager : Singleton<GameManager>
             {
                 currentLevelData = currentLevelDatas[currentLevel];
                 bubbleGridGenerator.currentLevel = currentLevel;
+
                 bubbleGridGenerator.LoadFrom(currentLevelData);
             }
             else
