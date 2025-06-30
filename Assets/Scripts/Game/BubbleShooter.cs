@@ -48,12 +48,14 @@ public class BubbleShooter : MonoBehaviour
         inputActions.Gameplay.Enable();
         inputActions.Gameplay.Fire.started += _ => StartAiming();
         inputActions.Gameplay.Fire.canceled += _ => ReleaseShot();
+        inputActions.Gameplay.Cheat.performed += _ => OnCheatPerformed();
 
         InitMagazine();
     }
 
     void OnDisable()
     {
+        inputActions.Gameplay.Cheat.performed -= _ => OnCheatPerformed();
         inputActions.Gameplay.Fire.canceled -= _ => ReleaseShot();
         inputActions.Gameplay.Fire.started -= _ => StartAiming();
         inputActions.Gameplay.Disable();
