@@ -144,3 +144,4 @@ public class GameManager : Singleton<GameManager>
         OnLose?.Invoke();
     }
 }
+
