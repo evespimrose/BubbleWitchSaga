@@ -7,6 +7,7 @@ using UnityEngine.UI;
 public class StageButton : MonoBehaviour
 {
     [SerializeField] private int StageNum;
+    [SerializeField] private GameObject stars;
 
     private Button button;
 
@@ -25,6 +26,10 @@ public class StageButton : MonoBehaviour
             button.interactable = false;
         else
             button.interactable = true;
+        if (GameManager.Instance.TopLevel() < StageNum)
+            stars.SetActive(false);
+        else
+            stars.SetActive(true);
     }
 
     private void OnClickStageButton()

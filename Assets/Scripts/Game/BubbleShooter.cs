@@ -1,3 +1,4 @@
+// BubbleShooter.cs
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
@@ -8,7 +9,6 @@ public class BubbleShooter : MonoBehaviour
     [Header("Bubble Settings")]
     public List<GameObject> bubbleProjectilePrefabs; // Red, Blue, Green
     public List<GameObject> targetBubblePrefabs;     // Red, Blue, Green
-    public BubbleColor currentColor = BubbleColor.Red;
 
     public float shootForce = 10f;
     public Transform firePoint;
@@ -22,30 +22,35 @@ public class BubbleShooter : MonoBehaviour
     public float dotSpacing = 0.3f;
 
     private float aimingStartTime;
-
     private Camera cam;
     private bool isAiming;
     private Vector2 shootDirection;
+    private Vector2? lastTargetGridWorldPos = null;
+
     [SerializeField] private GameObject targetBubbleInstance;
     [SerializeField] private BubbleGridGenerator gridGenerator;
-    private InputSystem_Actions inputActions;
-    private float aimStartTime;
-
     [SerializeField] private List<GameObject> trajectoryDots = new List<GameObject>();
 
+    [SerializeField] private SpriteRenderer firstBullet;
+    [SerializeField] private SpriteRenderer secondBullet;
+
+    private InputSystem_Actions inputActions;
     public bool canAim = true;
 
-    private Vector2? lastTargetGridWorldPos = null;
+    // ➜ 탄창 2개
+    private BubbleColor[] bubbleMagazine = new BubbleColor[2];
+
     void OnEnable()
     {
         if (cam == null) cam = Camera.main;
-
         if (inputActions == null) inputActions = new InputSystem_Actions();
 
         inputActions.Gameplay.Enable();
         inputActions.Gameplay.Fire.started += _ => StartAiming();
         inputActions.Gameplay.Fire.canceled += _ => ReleaseShot();
         inputActions.Gameplay.Cheat.performed += _ => OnCheatPerformed();
+
+        InitMagazine();
     }
 
     void OnDisable()
@@ -54,6 +59,13 @@ public class BubbleShooter : MonoBehaviour
         inputActions.Gameplay.Fire.canceled -= _ => ReleaseShot();
         inputActions.Gameplay.Fire.started -= _ => StartAiming();
         inputActions.Gameplay.Disable();
+    }
+
+    void InitMagazine()
+    {
+        bubbleMagazine[0] = GetRandomColor();
+        bubbleMagazine[1] = GetRandomColor();
+        UpdateBulletSprites();
     }
 
     private void OnCheatPerformed()
@@ -67,13 +79,10 @@ public class BubbleShooter : MonoBehaviour
     void Update()
     {
         if (gridGenerator == null) gridGenerator = GameManager.Instance.BubbleGridGenerator();
-
         if (!isAiming) return;
 
         UpdateShootDirection();
-
         List<Vector2> trajectoryPoints = CalculateTrajectory(firePoint.position, shootDirection);
-
         UpdateTrajectoryDots(trajectoryPoints);
         UpdateTargetBubble(trajectoryPoints);
     }
@@ -84,15 +93,7 @@ public class BubbleShooter : MonoBehaviour
         Vector2 rawDirection = mouseWorldPos - (Vector2)firePoint.position;
 
         float angle = Vector2.SignedAngle(Vector2.right, rawDirection);
-
-        if (rawDirection.y <= 0f)
-        {
-            angle = rawDirection.x < 0f ? 160f : 20f;
-        }
-        else
-        {
-            angle = Mathf.Clamp(angle, 20f, 160f);
-        }
+        angle = (rawDirection.y <= 0f) ? (rawDirection.x < 0f ? 160f : 20f) : Mathf.Clamp(angle, 20f, 160f);
 
         float radians = angle * Mathf.Deg2Rad;
         shootDirection = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)).normalized;
@@ -102,26 +103,19 @@ public class BubbleShooter : MonoBehaviour
 
     void UpdateTargetBubble(List<Vector2> points)
     {
-        if (points.Count < 2)
-        {
-            lastTargetGridWorldPos = null;
-            return;
-        }
+        if (points.Count < 2) { lastTargetGridWorldPos = null; return; }
 
         Vector2 lastPoint = points[^1];
         Vector2 secondLastPoint = points[^2];
+        Vector2 dir = (lastPoint - secondLastPoint).normalized;
 
-        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, (lastPoint - secondLastPoint).normalized,
-            Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
+        RaycastHit2D hit = Physics2D.Raycast(secondLastPoint, dir, Vector2.Distance(lastPoint, secondLastPoint), bubbleMask);
 
-        if (hit.collider != null && (hit.collider.CompareTag("Bubble")))
+        if (hit.collider != null && hit.collider.CompareTag("Bubble"))
         {
-            Vector2 shootDir = (lastPoint - secondLastPoint).normalized;
-            Vector2 contactPoint = hit.point;
-
-            HandleTargetBubblePlacement(contactPoint, shootDir);
+            HandleTargetBubblePlacement(hit.point, dir);
         }
-        else if(hit.collider != null && hit.collider.CompareTag("UpperWall"))
+        else if (hit.collider != null && hit.collider.CompareTag("UpperWall"))
         {
             SetTargetBubbleActive(false);
         }
@@ -134,34 +128,20 @@ public class BubbleShooter : MonoBehaviour
     void HandleTargetBubblePlacement(Vector2 contactPoint, Vector2 shootDir)
     {
         (int gx, int gy) = gridGenerator.FindNearestGridIndex(contactPoint);
-
-        Collider2D hitCol = Physics2D.OverlapPoint(contactPoint);
-
-        if (gx < 0 || gx >= gridGenerator.columns || gy < 0 || gy >= gridGenerator.rows)
-        {
-            lastTargetGridWorldPos = null;
-            return;
-        }
+        if (gx < 0 || gx >= gridGenerator.columns || gy < 0 || gy >= gridGenerator.rows) return;
 
         if (gridGenerator.IsCellOccupied(gx, gy))
         {
             (gx, gy) = gridGenerator.FindClosestFreeNeighborGrid(gx, gy, shootDir, contactPoint);
-            if (gridGenerator.IsCellOccupied(gx, gy))
-            {
-                lastTargetGridWorldPos = null;
-                return;
-            }
+            if (gridGenerator.IsCellOccupied(gx, gy)) return;
         }
 
         Vector2 targetPos = gridGenerator.GridToWorld(gx, gy);
+        if (lastTargetGridWorldPos.HasValue && Vector2.Distance(lastTargetGridWorldPos.Value, targetPos) < 0.01f) return;
 
-        if (lastTargetGridWorldPos.HasValue && Vector2.Distance(lastTargetGridWorldPos.Value, targetPos) < 0.01f)
-            return;
-
-        // 🎯 타겟 버블 생성
         if (targetBubbleInstance == null)
         {
-            GameObject targetPrefab = GetTargetPrefabByColor(currentColor);
+            GameObject targetPrefab = GetTargetPrefabByColor(bubbleMagazine[0]);
             targetBubbleInstance = Instantiate(targetPrefab);
         }
 
@@ -190,39 +170,22 @@ public class BubbleShooter : MonoBehaviour
     {
         if (!canAim) return;
         isAiming = true;
-
-        currentColor = GetRandomColor();
-
         aimingStartTime = Time.time;
 
         targetBubbleInstance = null;
         lastTargetGridWorldPos = null;
     }
 
-
     private void ReleaseShot()
     {
         if (!isAiming) return;
-
         float heldTime = Time.time - aimingStartTime;
 
-        if (heldTime <= 0.2f || targetBubbleInstance == null)
+        if (heldTime <= 0.2f || targetBubbleInstance == null || !targetBubbleInstance.activeSelf)
         {
             isAiming = false;
             ClearTrajectoryDots();
             if (targetBubbleInstance != null) Destroy(targetBubbleInstance);
-
-                targetBubbleInstance = null;
-            lastTargetGridWorldPos = null;
-            return;
-        }
-        else if (targetBubbleInstance != null && !targetBubbleInstance.gameObject.activeSelf)
-        {
-            isAiming = false;
-            ClearTrajectoryDots();
-
-            Destroy(targetBubbleInstance);
-
             targetBubbleInstance = null;
             lastTargetGridWorldPos = null;
             return;
@@ -231,7 +194,6 @@ public class BubbleShooter : MonoBehaviour
         FireBubble();
         isAiming = false;
         ClearTrajectoryDots();
-
         targetBubbleInstance = null;
         lastTargetGridWorldPos = null;
         canAim = false;
@@ -239,50 +201,33 @@ public class BubbleShooter : MonoBehaviour
 
     void FireBubble()
     {
-        if (targetBubbleInstance != null)
-        {
-            var bubbleComp = targetBubbleInstance.GetComponent<Bubble>();
+        BubbleColor fireColor = bubbleMagazine[0];
 
-            if (bubbleComp.GetAlpha() == 0f)
-            {
-                canAim = true;
-                return;
-            }
-
-            if (bubbleComp != null)
-                bubbleComp.SetAlpha(0f); // 투명화
-        }
-
-        GameObject prefab = GetProjectilePrefabByColor(currentColor);
+        GameObject prefab = GetProjectilePrefabByColor(fireColor);
         GameObject bubble = Instantiate(prefab, firePoint.position, Quaternion.identity);
         BubbleProjectile projectile = bubble.GetComponent<BubbleProjectile>();
 
         if (projectile != null)
         {
-            projectile.bubbleColor = currentColor;
-
+            projectile.bubbleColor = fireColor;
             projectile.Init(shootDirection, shootForce, targetBubbleInstance);
         }
-        else
-        {
-            Debug.LogError("발사된 버블에 BubbleProjectile 컴포넌트가 없습니다.");
-        }
+
+        bubbleMagazine[0] = bubbleMagazine[1];
+        bubbleMagazine[1] = GetRandomColor();
+        UpdateBulletSprites();
     }
 
     List<Vector2> CalculateTrajectory(Vector2 start, Vector2 dir)
     {
-        List<Vector2> points = new List<Vector2>();
-        points.Add(start);
-
+        List<Vector2> points = new List<Vector2> { start };
         Vector2 currentPos = start;
         Vector2 currentDir = dir.normalized;
         float remainingDist = maxPredictionDistance;
         float widthOffset = 0.15f;
 
-        for (int i = 0; i < maxBounces; i++)
+        for (int i = 0; i < maxBounces && remainingDist > 0f; i++)
         {
-            if (remainingDist <= 0f) break;
-
             Vector2 normal = new Vector2(-currentDir.y, currentDir.x);
             Vector2 leftOrigin = currentPos - normal * widthOffset;
             Vector2 rightOrigin = currentPos + normal * widthOffset;
@@ -290,10 +235,6 @@ public class BubbleShooter : MonoBehaviour
             RaycastHit2D centerHit = Physics2D.Raycast(currentPos, currentDir, remainingDist, wallMask | bubbleMask);
             RaycastHit2D leftHit = Physics2D.Raycast(leftOrigin, currentDir, remainingDist, wallMask | bubbleMask);
             RaycastHit2D rightHit = Physics2D.Raycast(rightOrigin, currentDir, remainingDist, wallMask | bubbleMask);
-
-            Debug.DrawRay(currentPos, currentDir * 5f, Color.white, 0.5f);
-            Debug.DrawRay(leftOrigin, currentDir * 5f, Color.red, 0.5f);
-            Debug.DrawRay(rightOrigin, currentDir * 5f, Color.blue, 0.5f);
 
             RaycastHit2D finalHit = GetClosestHit(centerHit, leftHit, rightHit);
 
@@ -309,15 +250,7 @@ public class BubbleShooter : MonoBehaviour
                     currentPos = finalHit.point + currentDir * 0.01f;
                     continue;
                 }
-                else if (finalHit.collider.CompareTag("Bubble"))
-                {
-                    break;
-                }
-                else if(finalHit.collider.CompareTag("UpperWall"))
-                {
-                    SetTargetBubbleActive(false);
-                    break;
-                }
+                else break;
             }
             else
             {
@@ -333,7 +266,6 @@ public class BubbleShooter : MonoBehaviour
     {
         RaycastHit2D closest = new RaycastHit2D();
         float minDist = float.MaxValue;
-
         foreach (var hit in hits)
         {
             if (hit.collider != null)
@@ -346,24 +278,19 @@ public class BubbleShooter : MonoBehaviour
                 }
             }
         }
-
         return closest;
     }
 
     void UpdateTrajectoryDots(List<Vector2> points)
     {
         ClearTrajectoryDots();
-
         for (int i = 0; i < points.Count - 1; i++)
         {
-            Vector2 start = points[i];
-            Vector2 end = points[i + 1];
-            float segmentLength = Vector2.Distance(start, end);
+            float segmentLength = Vector2.Distance(points[i], points[i + 1]);
             int dotCount = Mathf.CeilToInt(segmentLength / dotSpacing);
-
             for (int j = 0; j < dotCount; j++)
             {
-                Vector2 dotPos = Vector2.Lerp(start, end, j / (float)dotCount);
+                Vector2 dotPos = Vector2.Lerp(points[i], points[i + 1], j / (float)dotCount);
                 GameObject dot = Instantiate(trajectoryDotPrefab, dotPos, Quaternion.identity, transform);
                 trajectoryDots.Add(dot);
             }
@@ -374,8 +301,7 @@ public class BubbleShooter : MonoBehaviour
     {
         foreach (var dot in trajectoryDots)
         {
-            if (dot != null)
-                Destroy(dot);
+            if (dot != null) Destroy(dot);
         }
         trajectoryDots.Clear();
     }
@@ -383,28 +309,26 @@ public class BubbleShooter : MonoBehaviour
     GameObject GetProjectilePrefabByColor(BubbleColor color)
     {
         int index = (int)color;
-        return (index >= 0 && index < bubbleProjectilePrefabs.Count)
-            ? bubbleProjectilePrefabs[index]
-            : bubbleProjectilePrefabs[0];
+        return (index >= 0 && index < bubbleProjectilePrefabs.Count) ? bubbleProjectilePrefabs[index] : bubbleProjectilePrefabs[0];
     }
 
     GameObject GetTargetPrefabByColor(BubbleColor color)
     {
         int index = (int)color;
-        return (index >= 0 && index < targetBubblePrefabs.Count)
-            ? targetBubblePrefabs[index]
-            : targetBubblePrefabs[0];
+        return (index >= 0 && index < targetBubblePrefabs.Count) ? targetBubblePrefabs[index] : targetBubblePrefabs[0];
     }
 
     private BubbleColor GetRandomColor()
     {
-        // BubbleColor enum에서 유효한 색상만 필터링
-        var validColors = System.Enum.GetValues(typeof(BubbleColor))
-                            .Cast<BubbleColor>()
-                            .ToList();
+        var validColors = System.Enum.GetValues(typeof(BubbleColor)).Cast<BubbleColor>().ToList();
+        return validColors[Random.Range(0, validColors.Count)];
+    }
 
-        // 랜덤 인덱스 선택
-        int randomIndex = Random.Range(0, validColors.Count);
-        return validColors[randomIndex];
+    void UpdateBulletSprites()
+    {
+        if (firstBullet != null)
+            firstBullet.color = bubbleMagazine[0].ToColor();
+        if (secondBullet != null)
+            secondBullet.color = bubbleMagazine[1].ToColor();
     }
 }
