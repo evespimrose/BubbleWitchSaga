@@ -15,7 +15,7 @@ Bubble Witch Saga는 Unity 기반의 2D 버블 슈팅 퍼즐 게임입니다.
 ---
 
 ## 🛠️ 설치 방법
-  - [유니티 빌드 압축 파일 구글 드라이브 링크]([https://unity.com/](https://drive.google.com/file/d/1p-5G6gKg27p8R-BJ00B0y-FX9VETF2mM/view?usp=sharing)) 혹은 [Inno 인스톨러 구글 드라이브 링크]([https://unity.com/](https://drive.google.com/file/d/1yWK2wMjGTkK9VaAOk8QQC_SPhXG-_Oag/view?usp=sharing)) 에서 파일을 다운받아 압축 해제 후 빌드 실행(인스톨러의 경우 설치경로 지정 및 설치 과정 추가)
+  - [유니티 빌드 압축 파일 구글 드라이브 링크](https://drive.google.com/file/d/1p-5G6gKg27p8R-BJ00B0y-FX9VETF2mM/view?usp=sharing) 혹은 [Inno 인스톨러 구글 드라이브 링크]([https://unity.com/](https://drive.google.com/file/d/1yWK2wMjGTkK9VaAOk8QQC_SPhXG-_Oag/view?usp=sharing) 에서 파일을 다운받아 압축 해제 후 빌드 실행(인스톨러의 경우 설치경로 지정 및 설치 과정 추가)
 
 ## 🛠️ 주요 기술 및 구조
 
